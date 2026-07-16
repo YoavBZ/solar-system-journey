@@ -76,6 +76,36 @@
   .rnd.active{color:var(--gold);border-color:rgba(232,181,106,.55)}
   #navrow{display:flex;gap:10px}
   #btnSpeed{font-size:14px;letter-spacing:.02em;font-weight:500}
+  #btnFacts{font-family:'Fraunces',serif;font-style:italic;font-size:18px}
+
+  /* ---------- did-you-know drawer ---------- */
+  #factsWrap{position:fixed;left:50%;bottom:0;transform:translate(-50%,105%);z-index:45;
+    width:min(92vw,560px);transition:transform .45s cubic-bezier(.22,.9,.3,1);pointer-events:none}
+  #factsWrap.on{transform:translate(-50%,0);pointer-events:auto}
+  #facts{background:rgba(8,12,18,.82);border:1px solid var(--line);border-bottom:none;
+    backdrop-filter:blur(14px);border-radius:16px 16px 0 0;padding:20px 24px 26px;
+    max-height:52vh;overflow:auto}
+  #factsHead{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:10px}
+  #factsTitle{font-family:'Fraunces',serif;font-size:19px;color:var(--gold);letter-spacing:.02em}
+  #factsClose{background:none;border:none;color:var(--haze);font-size:22px;line-height:1;
+    cursor:pointer;padding:2px 6px}
+  #factsClose:hover{color:var(--ink)}
+  #factsList{margin:0;padding:0}
+  #factsList li{list-style:none;position:relative;padding-left:18px;margin:9px 0;
+    font-weight:300;font-size:14.5px;line-height:1.55;color:var(--ink)}
+  #factsList li::before{content:"";position:absolute;left:2px;top:9px;width:5px;height:5px;
+    border-radius:50%;background:var(--gold)}
+
+  /* ---------- touch ---------- */
+  @media (pointer:coarse){
+    .dot{width:11px;height:11px}
+    #dots{gap:13px}
+  }
+  @media (max-width:430px){
+    .rnd{width:40px;height:40px}
+    #navrow{gap:7px}
+    #controls{right:14px;bottom:14px}
+  }
   .pill:focus-visible,.rnd:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
   #hintkeys{position:fixed;left:24px;bottom:26px;font-size:11.5px;letter-spacing:.12em;
     text-transform:uppercase;color:rgba(147,164,182,.55);z-index:20;pointer-events:none}
@@ -165,12 +195,20 @@
     <button class="rnd" id="btnPrev" title="Previous stop (left arrow)" aria-label="Previous stop"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 5h2.4v14H7zM17.8 5.6v12.8L9.9 12z"/></svg></button>
     <button class="rnd" id="btnPlay" title="Play / pause the tour (space)" aria-label="Play or pause"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M7.5 5h3.2v14H7.5zM13.3 5h3.2v14h-3.2z"/></svg></button>
     <button class="rnd" id="btnNext" title="Next stop (right arrow)" aria-label="Next stop"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M14.6 5H17v14h-2.4zM6.2 5.6v12.8L14.1 12z"/></svg></button>
+    <button class="rnd" id="btnFacts" title="Did you know? (i)" aria-label="Did you know?">?</button>
     <button class="rnd" id="btnSpeed" title="Travel speed (f)" aria-label="Travel speed">1×</button>
     <button class="rnd" id="btnMusic" title="Gentle music (m)" aria-label="Toggle music"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M9 17.2V6.6l9-1.8v10.1a2.9 2.9 0 1 0 1.2 2.36V3.3L7.8 5.5v9.4A2.9 2.9 0 1 0 9 17.2z"/></svg></button>
   </div>
 </div>
-<div id="hintkeys">← → travel · space pause · f speed · hover a world for its name</div>
+<div id="hintkeys">← → travel · space pause · f speed · i facts · hover a world for its name</div>
 <div id="credit"></div>
+
+<div id="factsWrap" role="dialog" aria-label="Did you know?">
+  <div id="facts">
+    <div id="factsHead"><div id="factsTitle"></div><button id="factsClose" aria-label="Close">×</button></div>
+    <ul id="factsList"></ul>
+  </div>
+</div>
 
 <div id="fader"><div id="faderNote"></div></div>
 
@@ -1485,6 +1523,7 @@ function finishTransit(){
 function gotoStop(i,instant){
   if(TR||trans||i<0||i>=stops.length)return;
   if(i===cur&&!instant)return;
+  factsClose(true);                       /* navigation dismisses the drawer */
   if(!instant&&i===cur+1&&i<=10&&cur>=0){transitTo(i);return;}
   trans=true;
   faderNote.textContent='';
@@ -1495,9 +1534,10 @@ function gotoStop(i,instant){
   },instant?60:800);
 }
 
-/* hover tooltips */
+/* hover tooltips (mouse; touch names worlds on tap below) */
 const ray=new THREE.Raycaster();const ndc=new THREE.Vector2();
 addEventListener('pointermove',function(e){
+  if(e.pointerType==='touch')return;
   if(cur<0||trans)return;
   ndc.x=(e.clientX/innerWidth)*2-1;ndc.y=-(e.clientY/innerHeight)*2+1;
   ray.setFromCamera(ndc,camera);
@@ -1507,6 +1547,37 @@ addEventListener('pointermove',function(e){
     tipEl.style.left=e.clientX+'px';tipEl.style.top=e.clientY+'px';
     tipEl.classList.add('on');
   }else hideTip();
+});
+
+/* touch: swipe to travel, tap a world for its name */
+let swId=null,swX=0,swY=0,swT=0,tipT=0;
+addEventListener('pointerdown',function(e){
+  if(e.pointerType!=='touch'||!splash.classList.contains('off'))return;
+  if(swId!==null){swId=-1;return;}        /* second finger: not a swipe */
+  if(e.target.closest('#controls,#dots,#factsWrap'))return;
+  swId=e.pointerId;swX=e.clientX;swY=e.clientY;swT=performance.now();
+});
+addEventListener('pointercancel',function(e){if(e.pointerId===swId||swId===-1)swId=null;});
+addEventListener('pointerup',function(e){
+  if(e.pointerType!=='touch')return;
+  if(e.pointerId!==swId){if(swId===-1)swId=null;return;}
+  swId=null;
+  const dx=e.clientX-swX,dy=e.clientY-swY,el=performance.now()-swT;
+  if(el<650&&Math.abs(dx)>60&&Math.abs(dx)>2*Math.abs(dy)){
+    gotoStop(dx<0?cur+1:cur-1);
+  }else if(el<400&&Math.abs(dx)<12&&Math.abs(dy)<12){
+    if(factsWrap.classList.contains('on')){factsClose();return;}
+    if(cur<0||trans||TR)return;
+    ndc.x=(e.clientX/innerWidth)*2-1;ndc.y=-(e.clientY/innerHeight)*2+1;
+    ray.setFromCamera(ndc,camera);
+    const hit=ray.intersectObjects(stops[cur].hover,false)[0];
+    if(hit){
+      tipEl.textContent=hit.object.userData.name;
+      tipEl.style.left=e.clientX+'px';tipEl.style.top=e.clientY+'px';
+      tipEl.classList.add('on');
+      clearTimeout(tipT);tipT=setTimeout(hideTip,2200);
+    }else hideTip();
+  }
 });
 
 /* main loop */
@@ -1984,9 +2055,86 @@ document.addEventListener('visibilitychange',function(){
 /* ================================================================
    6 · UI WIRING
 ================================================================ */
+/* ---------- did you know? — three or four wonders per stop ---------- */
+const FACTS=[
+ ['Space is almost perfectly empty — far emptier than any vacuum we can make on Earth.',
+  'Out here it is completely silent: sound needs air to travel, and space has none.',
+  'The nearest star beyond the Sun is so far away that its light takes over 4 years to reach us.'],
+ ['Neptune has the fastest winds in the solar system — up to 2,000 km/h, faster than any hurricane on Earth.',
+  'It was discovered with mathematics before anyone saw it, predicted from the way it tugged on Uranus.',
+  'One year on Neptune lasts 165 Earth years — it has completed just one orbit since its discovery in 1846.',
+  'Its big moon Triton circles the planet backwards — the only large moon in the solar system that does.'],
+ ['Uranus rolls around the Sun on its side, so its poles take turns pointing at the Sun.',
+  'Each season there lasts about 21 Earth years.',
+  'Its atmosphere is the coldest of any planet, dropping below −220 °C.',
+  'Most of its moons are named after characters from Shakespeare.'],
+ ['Saturn’s rings are billions of chunks of nearly pure water ice — some like dust grains, some like houses.',
+  'The rings span wider than 20 Earths side by side, yet in most places they are only tens of meters thick.',
+  'Saturn is so light for its size that it would float — if you could find a big enough bathtub.',
+  'A day on Saturn lasts just 10.7 hours: the giant spins remarkably fast.'],
+ ['Jupiter is so big that more than 1,300 Earths could fit inside it.',
+  'The Great Red Spot is a storm wider than Earth that has raged for at least 190 years.',
+  'Its moon Ganymede is the largest moon in the solar system — bigger than the planet Mercury.',
+  'Jupiter has the shortest day of any planet, spinning once in under 10 hours.'],
+ ['All the asteroids in the belt together weigh less than our Moon.',
+  'Asteroids are so far apart that spacecraft fly straight through without coming close to one.',
+  'They are leftovers from 4.6 billion years ago — building blocks that never became a planet.',
+  'Ceres, the largest object here, is a dwarf planet holding about a third of the belt’s entire mass.'],
+ ['Olympus Mons is the tallest volcano in the solar system — nearly three times the height of Mount Everest.',
+  'Mars is red because its soil is rusty: iron in the dust oxidized, like old metal left outside.',
+  'A Martian day is 24.6 hours, almost the same as ours — but its year is nearly two Earth years.',
+  'Sunsets on Mars are blue: the fine dust scatters light the opposite way to Earth’s sky.'],
+ ['Earth is the only place we know of — anywhere — with life.',
+  'Seen from space, Earth is a water world: oceans cover 71% of its surface.',
+  'The Moon drifts about 4 cm farther from Earth every year — about as fast as your fingernails grow.',
+  'Moonlight is really sunlight bouncing off gray rock, reaching us 1.3 seconds after it leaves the Moon.'],
+ ['Venus is the hottest planet — about 465 °C — even though Mercury is closer to the Sun: its thick air traps the heat.',
+  'A day on Venus is longer than its year — it spins that slowly.',
+  'It also spins backwards: on Venus, the Sun rises in the west.',
+  'After the Sun and Moon, Venus is the brightest natural object in our sky.'],
+ ['Mercury swings from about 430 °C by day to −180 °C at night — with almost no air to hold the warmth.',
+  'Its year is just 88 Earth days, the shortest of any planet.',
+  'Mercury is the smallest planet — not much bigger than our Moon.',
+  'Its cratered face looks like the Moon’s: scars from billions of years of impacts.'],
+ ['The Sun holds 99.8% of all the mass in the solar system.',
+  'More than a million Earths could fit inside it.',
+  'Light made in its 15-million-degree core can take 100,000 years to reach the surface — then just 8 minutes to reach Earth.',
+  'It is a middle-aged star: about 4.6 billion years old, with roughly 5 billion still to go.'],
+ ['Jupiter outweighs all the other planets put together — more than twice over.',
+  'Earth is the largest of the four rocky planets, yet 11 Earths would fit across Jupiter’s face.',
+  'Uranus and Neptune are near twins: Uranus is slightly wider, Neptune slightly heavier.'],
+ ['All the planets travel in nearly the same flat plane — the solar system formed from one spinning disk of dust and gas.',
+  'The closer a planet is to the Sun, the faster it must race: Mercury moves at 47 km every second, Neptune at just 5.',
+  'Seen from above the Sun’s north pole, every planet orbits in the same direction — counterclockwise.'],
+ ['Voyager 1, launched in 1977, is the farthest human-made object — over 24 billion km away and still calling home.',
+  'From out there, Earth is a single pale blue dot: everyone who ever lived, on one small point of light.',
+  'The journey you just took spans about 4.5 billion km — light crosses it in just over 4 hours.']];
+
 const btnPlay=document.getElementById('btnPlay');
 const btnMusic=document.getElementById('btnMusic');
 const btnSpeed=document.getElementById('btnSpeed');
+const btnFacts=document.getElementById('btnFacts');
+const factsWrap=document.getElementById('factsWrap');
+const factsTitle=document.getElementById('factsTitle');
+const factsList=document.getElementById('factsList');
+let factsWasPlaying=false;
+function factsOpen(){
+  if(cur<0||TR||trans||!FACTS[cur])return;
+  factsTitle.textContent=STOP_NAMES[cur];
+  factsList.innerHTML='';
+  for(const f of FACTS[cur]){const li=document.createElement('li');li.textContent=f;factsList.appendChild(li);}
+  factsWasPlaying=playing;
+  if(playing)setPlaying(false);           /* hold the tour while reading */
+  factsWrap.classList.add('on');btnFacts.classList.add('active');
+}
+function factsClose(resume){
+  if(!factsWrap.classList.contains('on'))return;
+  factsWrap.classList.remove('on');btnFacts.classList.remove('active');
+  if(resume!==false&&factsWasPlaying)setPlaying(true);
+  factsWasPlaying=false;
+}
+btnFacts.onclick=function(){factsWrap.classList.contains('on')?factsClose():factsOpen();};
+document.getElementById('factsClose').onclick=function(){factsClose();};
 let SPD=1;
 function setSpeed(v){SPD=v;btnSpeed.textContent=v+'×';btnSpeed.classList.toggle('active',v>1);}
 btnSpeed.onclick=function(){setSpeed(SPD===1?2:SPD===2?4:1);};
@@ -2004,12 +2152,18 @@ addEventListener('keydown',function(e){
   else if(e.key===' '){e.preventDefault();setPlaying(!playing);}
   else if(e.key==='m'||e.key==='M')btnMusic.click();
   else if(e.key==='f'||e.key==='F')btnSpeed.click();
+  else if(e.key==='i'||e.key==='I')btnFacts.click();
+  else if(e.key==='Escape')factsClose();
 });
 
 /* ================================================================
    7 · BOOT
 ================================================================ */
 const loadmsg=document.getElementById('loadmsg');
+if(matchMedia('(pointer: coarse)').matches){
+  document.getElementById('hintkeys').textContent='swipe to travel · tap a world for its name · ? for facts';
+  document.querySelector('#splash .keys').textContent='Sit back — the tour plays itself. Swipe or use the dots to travel freely.';
+}
 let started=false;
 let prepP=null;
 async function prepare(){
