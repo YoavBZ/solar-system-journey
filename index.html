@@ -119,14 +119,14 @@
 
   /* ---------- touch ---------- */
   @media (pointer:coarse){
-    .rnd{width:46px;height:46px}
-    #navrow{gap:12px}
     .dot::after{content:"";position:absolute;inset:-12px -4px}
     #dots{gap:12px}
   }
-  @media (pointer:coarse) and (max-width:390px){
-    .rnd{width:42px;height:42px}
-    #navrow{gap:8px}
+  /* tablets have room for full-size touch targets; phones keep the
+     compact 640px sizing so six buttons still fit */
+  @media (pointer:coarse) and (min-width:641px){
+    .rnd{width:46px;height:46px}
+    #navrow{gap:12px}
   }
   .pill:focus-visible,.rnd:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
   #hintkeys{position:fixed;left:calc(24px + env(safe-area-inset-left,0px));
@@ -179,10 +179,16 @@
 
   @media (max-width:640px){
     #brand{display:none}
+    /* the control cluster spans nearly the full width on phones, so
+       the hint and credit move out of its row: hint stays hidden
+       (the splash teaches swipe), credit centers under the buttons */
     #hintkeys{display:none}
+    #credit{left:0;right:0;text-align:center;bottom:2px;font-size:9.5px}
     #dots{gap:7px;top:14px}
     .dot{width:6px;height:6px}
-    #capzone{bottom:18vh}
+    /* keep captions clear of the buttons + context pill even when
+       browser chrome shrinks the viewport */
+    #capzone{bottom:max(18vh,calc(112px + env(safe-area-inset-bottom,0px)))}
     #controls{gap:8px;right:14px;bottom:14px}
     .rnd{width:40px;height:40px;font-size:15px}
     .pill{padding:8px 13px;font-size:12.5px}
@@ -194,8 +200,10 @@
   @media (max-height:640px){
     #capzone{bottom:118px}
   }
-  @media (pointer:coarse){
+  @media (pointer:coarse) and (min-width:641px){
     #hintkeys{display:block}
+  }
+  @media (pointer:coarse){
     #facts{left:12px;right:12px;bottom:calc(64px + env(safe-area-inset-bottom,0px));
       width:auto;max-height:38vh;overflow-y:auto}
     body.facts-open #capzone{opacity:0;transition:opacity .3s}
