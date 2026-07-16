@@ -1393,6 +1393,7 @@ function activate(i){
   if(cur>10)stops[cur].group.visible=false;
   clearLabels();setPinned('');hideTip();
   cur=i;const st=stops[i];
+  audio.setStop(i,1.2);
   st.group.visible=true;
   if(st.layout)st.layout(camera.aspect);
   stopClock=0;capIdx=-1;
@@ -1465,12 +1466,15 @@ function transitTo(j){
   TR={to:j,t:0,dur:(j===5?7.4:(j===7?9.2:6.4)),
     yawA:yA,pitA:pA,tgt:entryL,
     path:tpath};
-  audio.chime();
+  audio.chime(j);
+  audio.whoosh(TR.dur);
+  audio.setStop(j,TR.dur*.38);   /* harmony glides to the new key mid-flight */
   capEl.classList.remove('show');capIdx=-1;hideTip();
 }
 function finishTransit(){
   const j=TR.to;TR=null;
   cur=j;const st=stops[j];
+  audio.arrive(j);
   stopClock=0;capIdx=-1;
   clearLabels();setPinned('');hideTip();
   if(st.onActivate)st.onActivate();
@@ -1484,7 +1488,7 @@ function gotoStop(i,instant){
   trans=true;
   faderNote.textContent='';
   fader.classList.add('on');
-  audio.chime();
+  audio.chime(i);
   setTimeout(function(){
     activate(i);
     setTimeout(function(){fader.classList.remove('on');trans=false;},380);
@@ -1832,57 +1836,168 @@ async function applyEmbedded(){
 /* ================================================================
    5 · GENTLE MUSIC (Web Audio — off until the visitor begins)
 ================================================================ */
-const audio={ctx:null,on:false,master:null,
+/* per-stop harmony — the score warms as the journey falls sunward:
+   [four drone voice frequencies (0 = voice rests), lowpass cutoff Hz] */
+const KEYS=[
+  [[110,164.81,220,0],380],            /* Deep Space — bare A, cold      */
+  [[98,146.83,196,0],330],             /* Neptune — G, darkest           */
+  [[110,164.81,246.94,0],360],         /* Uranus — Asus2 shimmer         */
+  [[87.31,130.81,174.61,220],420],     /* Saturn — F, first warmth       */
+  [[73.42,110,146.83,185],460],        /* Jupiter — D major, grand       */
+  [[82.41,123.47,164.81,0],400],       /* Belt — hollow E                */
+  [[69.3,103.83,138.59,164.81],440],   /* Mars — C# minor, rust          */
+  [[110,164.81,220,277.18],560],       /* Earth — A major, home          */
+  [[123.47,185,246.94,311.13],620],    /* Venus — B major, bright haze   */
+  [[138.59,207.65,277.18,349.23],700], /* Mercury — C#, scorched         */
+  [[110,164.81,220,329.63],880],       /* The Sun — full A, brightest    */
+  [[146.83,220,293.66,369.99],620],    /* Planet Sizes — D, reflective   */
+  [[164.81,246.94,329.63,415.3],560],  /* Orbit Map — E, dominant        */
+  [[110,164.81,220,277.18],480]];      /* Farewell — A major, resolve    */
+/* departure bell: one pentatonic step per destination, rising sunward */
+const BELL=[440,493.88,554.37,659.25,739.99,830.61,880,987.77,1108.73,1318.51,1479.98,987.77,880,659.25];
+const audio={ctx:null,on:false,master:null,verb:null,lp:null,voices:null,wgain:null,wbp:null,_zz:0,
+  _pan:function(v){
+    if(!this.ctx.createStereoPanner)return null;
+    const p=this.ctx.createStereoPanner();p.pan.value=v;return p;
+  },
   init:function(){
     if(this.ctx)return;
     const AC=window.AudioContext||window.webkitAudioContext;if(!AC)return;
     this.ctx=new AC();
+    /* master → gentle compressor → out; every voice (chimes included)
+       rides the master so the mute fade silences tails too */
+    const comp=this.ctx.createDynamicsCompressor();
+    comp.threshold.value=-26;comp.knee.value=18;comp.ratio.value=6;
+    comp.attack.value=.01;comp.release.value=.4;
+    comp.connect(this.ctx.destination);
     this.master=this.ctx.createGain();this.master.gain.value=0;
-    this.master.connect(this.ctx.destination);
-    const lp=this.ctx.createBiquadFilter();lp.type='lowpass';lp.frequency.value=440;
-    lp.connect(this.master);
-    const F=[110,165,220],G=[.5,.34,.26];
-    for(let i=0;i<3;i++){
-      const o=this.ctx.createOscillator();o.type='triangle';o.frequency.value=F[i];
-      const gn=this.ctx.createGain();gn.gain.value=G[i]*.6;
-      const lfo=this.ctx.createOscillator();lfo.frequency.value=.03+.025*i;
-      const lg=this.ctx.createGain();lg.gain.value=G[i]*.28;
-      lfo.connect(lg);lg.connect(gn.gain);
-      o.connect(gn);gn.connect(lp);o.start();lfo.start();
+    this.master.connect(comp);
+    /* generated hall: 2.8 s of decaying stereo noise as the impulse */
+    this.verb=this.ctx.createConvolver();
+    const vlen=Math.floor(2.8*this.ctx.sampleRate);
+    const ir=this.ctx.createBuffer(2,vlen,this.ctx.sampleRate);
+    for(let ch=0;ch<2;ch++){const dd=ir.getChannelData(ch);
+      for(let i=0;i<vlen;i++)dd[i]=(Math.random()*2-1)*Math.pow(1-i/vlen,2.6);}
+    this.verb.buffer=ir;
+    const vg=this.ctx.createGain();vg.gain.value=.5;
+    this.verb.connect(vg);vg.connect(this.master);
+    this.lp=this.ctx.createBiquadFilter();this.lp.type='lowpass';this.lp.frequency.value=KEYS[0][1];
+    this.lp.connect(this.master);
+    const dsend=this.ctx.createGain();dsend.gain.value=.22;
+    this.lp.connect(dsend);dsend.connect(this.verb);
+    /* four drone voices spread across the stereo field */
+    this.voices=[];
+    const PAN=[-.4,.3,-.15,.45],G=[.5,.34,.26,.2];
+    for(let i=0;i<4;i++){
+      const o=this.ctx.createOscillator();o.type='triangle';o.frequency.value=KEYS[0][0][i]||220;
+      const tg=this.ctx.createGain();tg.gain.value=.75;
+      const lfo=this.ctx.createOscillator();lfo.frequency.value=.03+.02*i;
+      const lg=this.ctx.createGain();lg.gain.value=.3;
+      lfo.connect(lg);lg.connect(tg.gain);
+      const lv=this.ctx.createGain();lv.gain.value=KEYS[0][0][i]?G[i]*.6:0;
+      const pn=this._pan(PAN[i]);
+      o.connect(tg);tg.connect(lv);
+      if(pn){lv.connect(pn);pn.connect(this.lp);}else lv.connect(this.lp);
+      o.start();lfo.start();
+      this.voices.push({o:o,lv:lv,base:G[i]*.6});
     }
+    /* stereo noise bed, drifting slowly across the field */
     const len=2*this.ctx.sampleRate;
-    const buf=this.ctx.createBuffer(1,len,this.ctx.sampleRate);
-    const d=buf.getChannelData(0);
-    for(let i=0;i<len;i++)d[i]=Math.random()*2-1;
+    const buf=this.ctx.createBuffer(2,len,this.ctx.sampleRate);
+    for(let ch=0;ch<2;ch++){const d=buf.getChannelData(ch);
+      for(let i=0;i<len;i++)d[i]=Math.random()*2-1;}
     const src=this.ctx.createBufferSource();src.buffer=buf;src.loop=true;
     const bp=this.ctx.createBiquadFilter();bp.type='bandpass';bp.frequency.value=520;bp.Q.value=.6;
     const ng=this.ctx.createGain();ng.gain.value=.02;
-    src.connect(bp);bp.connect(ng);ng.connect(this.master);src.start();
+    src.connect(bp);bp.connect(ng);
+    const np=this._pan(0);
+    if(np){ng.connect(np);np.connect(this.master);
+      const plfo=this.ctx.createOscillator();plfo.frequency.value=.017;
+      const plg=this.ctx.createGain();plg.gain.value=.35;
+      plfo.connect(plg);plg.connect(np.pan);plfo.start();
+    }else ng.connect(this.master);
+    src.start();
+    /* second noise tap held silent until a transit whooshes it open */
+    const wsrc=this.ctx.createBufferSource();wsrc.buffer=buf;wsrc.loop=true;
+    this.wbp=this.ctx.createBiquadFilter();this.wbp.type='bandpass';
+    this.wbp.frequency.value=300;this.wbp.Q.value=.9;
+    this.wgain=this.ctx.createGain();this.wgain.gain.value=0;
+    wsrc.connect(this.wbp);this.wbp.connect(this.wgain);this.wgain.connect(this.master);
+    const wsend=this.ctx.createGain();wsend.gain.value=.3;
+    this.wgain.connect(wsend);wsend.connect(this.verb);
+    wsrc.start();
+  },
+  setStop:function(i,glide){
+    if(!this.ctx||!KEYS[i])return;
+    const t=this.ctx.currentTime,k=glide||1.5,F=KEYS[i][0];
+    for(let v=0;v<4;v++){
+      const vo=this.voices[v];
+      if(F[v]){vo.o.frequency.setTargetAtTime(F[v],t,k);
+        vo.lv.gain.setTargetAtTime(vo.base,t,k);}
+      else vo.lv.gain.setTargetAtTime(0,t,k);
+    }
+    this.lp.frequency.setTargetAtTime(KEYS[i][1],t,k*1.4);
+  },
+  whoosh:function(dur){
+    if(!this.ctx||!this.on)return;
+    const t=this.ctx.currentTime,d=Math.max(1.6,dur||6);
+    const g=this.wgain.gain,f=this.wbp.frequency;
+    g.cancelScheduledValues(t);f.cancelScheduledValues(t);
+    g.setValueAtTime(g.value,t);
+    g.linearRampToValueAtTime(.045,t+d*.35);
+    g.linearRampToValueAtTime(.026,t+d*.7);
+    g.linearRampToValueAtTime(0,t+d);
+    f.setValueAtTime(280,t);
+    f.exponentialRampToValueAtTime(1300,t+d*.45);
+    f.exponentialRampToValueAtTime(420,t+d);
   },
   setOn:function(v){
     if(v&&!this.ctx)this.init();
     if(!this.ctx){this.on=false;return;}
     this.on=v;
-    if(this.ctx.state==='suspended')this.ctx.resume();
+    clearTimeout(this._zz);
+    if(v&&this.ctx.state==='suspended')this.ctx.resume();
     const t=this.ctx.currentTime;
     this.master.gain.cancelScheduledValues(t);
     this.master.gain.setTargetAtTime(v?.055:0,t,1.2);
+    if(!v){const me=this;this._zz=setTimeout(function(){
+      if(!me.on&&me.ctx.state==='running')me.ctx.suspend();},6500);}
   },
-  chime:function(){
+  chime:function(i){
     if(!this.ctx||!this.on)return;
     const t=this.ctx.currentTime;
-    const N=[[523.25,.04],[784,.022]];
-    for(let i=0;i<N.length;i++){
-      const o=this.ctx.createOscillator();o.type='sine';o.frequency.value=N[i][0];
+    const f=BELL[Math.max(0,Math.min(BELL.length-1,i==null?5:i))];
+    /* fundamental + fifth + a faint inharmonic partial for bell colour */
+    const N=[[f,.5,-.3],[f*1.5,.26,.35],[f*2.76,.06,0]];
+    for(let j=0;j<N.length;j++){
+      const o=this.ctx.createOscillator();o.type='sine';o.frequency.value=N[j][0];
       const g=this.ctx.createGain();
       g.gain.setValueAtTime(0,t);
-      g.gain.linearRampToValueAtTime(N[i][1],t+.05+i*.04);
-      g.gain.exponentialRampToValueAtTime(.0001,t+1.5);
-      o.connect(g);g.connect(this.ctx.destination);
-      o.start(t);o.stop(t+1.6);
+      g.gain.linearRampToValueAtTime(N[j][1],t+.05+j*.03);
+      g.gain.exponentialRampToValueAtTime(.0001,t+1.8);
+      o.connect(g);
+      const pn=this._pan(N[j][2]);
+      if(pn){g.connect(pn);pn.connect(this.master);}else g.connect(this.master);
+      const s=this.ctx.createGain();s.gain.value=.8;g.connect(s);s.connect(this.verb);
+      o.start(t);o.stop(t+2);
     }
+  },
+  arrive:function(i){
+    if(!this.ctx||!this.on||!KEYS[i])return;
+    const t=this.ctx.currentTime;
+    const o=this.ctx.createOscillator();o.type='sine';o.frequency.value=KEYS[i][0][0]*2;
+    const g=this.ctx.createGain();
+    g.gain.setValueAtTime(0,t);
+    g.gain.linearRampToValueAtTime(.3,t+.4);
+    g.gain.exponentialRampToValueAtTime(.0001,t+3);
+    o.connect(g);g.connect(this.master);
+    const s=this.ctx.createGain();s.gain.value=.6;g.connect(s);s.connect(this.verb);
+    o.start(t);o.stop(t+3.1);
   }
 };
+document.addEventListener('visibilitychange',function(){
+  if(!document.hidden&&audio.on&&audio.ctx&&audio.ctx.state==='suspended')audio.ctx.resume();
+});
 
 /* ================================================================
    6 · UI WIRING
@@ -1947,7 +2062,7 @@ async function prepare(){
   gsun.userData.core=gcore;
   scene.add(gsun);scene.add(gcore);
   window.__globalSun=gsun;
-  window.__J={scene:scene,stops:stops,camera:camera,goto:gotoStop,st:function(){return{cur:cur,TR:!!TR,stopClock:stopClock};}};
+  window.__J={scene:scene,stops:stops,camera:camera,goto:gotoStop,audio:audio,st:function(){return{cur:cur,TR:!!TR,stopClock:stopClock};}};
   for(let i=0;i<stops.length;i++){
     const d=document.createElement('button');
     d.className='dot';d.title=STOP_NAMES[i];d.setAttribute('aria-label',STOP_NAMES[i]);
