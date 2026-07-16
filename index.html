@@ -75,6 +75,7 @@
   .rnd:hover{border-color:var(--gold)}
   .rnd.active{color:var(--gold);border-color:rgba(232,181,106,.55)}
   #navrow{display:flex;gap:10px}
+  #btnSpeed{font-size:14px;letter-spacing:.02em;font-weight:500}
   .pill:focus-visible,.rnd:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
   #hintkeys{position:fixed;left:24px;bottom:26px;font-size:11.5px;letter-spacing:.12em;
     text-transform:uppercase;color:rgba(147,164,182,.55);z-index:20;pointer-events:none}
@@ -164,10 +165,11 @@
     <button class="rnd" id="btnPrev" title="Previous stop (left arrow)" aria-label="Previous stop"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 5h2.4v14H7zM17.8 5.6v12.8L9.9 12z"/></svg></button>
     <button class="rnd" id="btnPlay" title="Play / pause the tour (space)" aria-label="Play or pause"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M7.5 5h3.2v14H7.5zM13.3 5h3.2v14h-3.2z"/></svg></button>
     <button class="rnd" id="btnNext" title="Next stop (right arrow)" aria-label="Next stop"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M14.6 5H17v14h-2.4zM6.2 5.6v12.8L14.1 12z"/></svg></button>
+    <button class="rnd" id="btnSpeed" title="Travel speed (f)" aria-label="Travel speed">1×</button>
     <button class="rnd" id="btnMusic" title="Gentle music (m)" aria-label="Toggle music"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M9 17.2V6.6l9-1.8v10.1a2.9 2.9 0 1 0 1.2 2.36V3.3L7.8 5.5v9.4A2.9 2.9 0 1 0 9 17.2z"/></svg></button>
   </div>
 </div>
-<div id="hintkeys">← → travel · space pause · hover a world for its name</div>
+<div id="hintkeys">← → travel · space pause · f speed · hover a world for its name</div>
 <div id="credit"></div>
 
 <div id="fader"><div id="faderNote"></div></div>
@@ -1466,7 +1468,7 @@ function transitTo(j){
   TR={to:j,t:0,dur:(j===5?7.4:(j===7?9.2:6.4)),
     yawA:yA,pitA:pA,tgt:entryL,
     path:tpath};
-  audio.whoosh(TR.dur);
+  audio.whoosh(TR.dur/SPD);
   audio.setStop(j,TR.dur*.38);   /* harmony glides to the new key mid-flight */
   capEl.classList.remove('show');capIdx=-1;hideTip();
 }
@@ -1512,14 +1514,17 @@ let last=performance.now();
 function tick(now){
   requestAnimationFrame(tick);
   const dt=Math.min((now-last)/1000,.05);last=now;
+  /* jdt: journey time — scaled by the speed control; dt stays real
+     so smoothing and optical-flow rates keep their physical meaning */
+  const jdt=dt*SPD;
   if(cur<0)return;
-  if(playing)GT+=dt;
+  if(playing)GT+=jdt;
   /* every visible scene keeps living */
   for(let i2=0;i2<stops.length;i2++){const s2=stops[i2];
-    if(s2.group.visible&&s2.update)s2.update(playing?dt:0,(i2===cur)?stopClock:GT);}
-  if(playing){for(const s of spinners)s.m.rotation.y+=s.rate*dt;}
+    if(s2.group.visible&&s2.update)s2.update(playing?jdt:0,(i2===cur)?stopClock:GT);}
+  if(playing){for(const s of spinners)s.m.rotation.y+=s.rate*jdt;}
   if(TR){
-    if(playing)TR.t+=dt;
+    if(playing)TR.t+=jdt;
     const tt=Math.min(TR.t/TR.dur,1);
     const ss=tt*tt*tt*(tt*(tt*6-15)+10);
     const eu=ss;   /* zero start/end velocity: orbits carry the glide across handoffs */
@@ -1545,7 +1550,7 @@ function tick(now){
     if(TR.t>=TR.dur)finishTransit();
   }else{
     const st=stops[cur];
-    if(playing&&!trans)stopClock+=dt;
+    if(playing&&!trans)stopClock+=jdt;
     const u=st.camDur?Math.min(stopClock/st.camDur,1):0;
     const c=st.path(u);
     let cpx=c.pos[0],cpy=c.pos[1],cpz=c.pos[2];
@@ -1981,6 +1986,10 @@ document.addEventListener('visibilitychange',function(){
 ================================================================ */
 const btnPlay=document.getElementById('btnPlay');
 const btnMusic=document.getElementById('btnMusic');
+const btnSpeed=document.getElementById('btnSpeed');
+let SPD=1;
+function setSpeed(v){SPD=v;btnSpeed.textContent=v+'×';btnSpeed.classList.toggle('active',v>1);}
+btnSpeed.onclick=function(){setSpeed(SPD===1?2:SPD===2?4:1);};
 const SVG_PAUSE='<svg viewBox="0 0 24 24" fill="currentColor"><path d="M7.5 5h3.2v14H7.5zM13.3 5h3.2v14h-3.2z"/></svg>';
 const SVG_PLAY='<svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.2v13.6L19 12z"/></svg>';
 function setPlaying(p){playing=p;btnPlay.innerHTML=p?SVG_PAUSE:SVG_PLAY;btnPlay.classList.toggle('active',!p);}
@@ -1994,6 +2003,7 @@ addEventListener('keydown',function(e){
   else if(e.key==='ArrowLeft')gotoStop(cur-1);
   else if(e.key===' '){e.preventDefault();setPlaying(!playing);}
   else if(e.key==='m'||e.key==='M')btnMusic.click();
+  else if(e.key==='f'||e.key==='F')btnSpeed.click();
 });
 
 /* ================================================================
