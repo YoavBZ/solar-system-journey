@@ -22,8 +22,11 @@
   }
   *{margin:0;padding:0;box-sizing:border-box}
   html,body{height:100%;overflow:hidden;background:var(--void);color:var(--ink);
-    font-family:'Outfit',system-ui,sans-serif;-webkit-font-smoothing:antialiased}
-  #sky{position:fixed;inset:0;display:block}
+    font-family:'Outfit',system-ui,sans-serif;-webkit-font-smoothing:antialiased;
+    overscroll-behavior:none}
+  body{-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none;
+    -webkit-touch-callout:none}
+  #sky{position:fixed;inset:0;display:block;touch-action:none}
   body::after{content:"";position:fixed;inset:0;pointer-events:none;
     background:radial-gradient(ellipse at center, transparent 55%, rgba(0,0,0,.5) 100%)}
 
@@ -40,11 +43,11 @@
   #pinned.on{opacity:1}
 
   /* ---------- journey dots ---------- */
-  #dots{position:fixed;top:22px;left:50%;transform:translateX(-50%);display:flex;gap:10px;
+  #dots{position:fixed;top:calc(22px + env(safe-area-inset-top,0px));left:50%;transform:translateX(-50%);display:flex;gap:10px;
     align-items:center;z-index:25}
   .dot{width:7px;height:7px;border-radius:50%;background:rgba(240,237,230,.28);border:none;
     cursor:pointer;padding:0;transition:all .35s;position:relative}
-  .dot:hover{background:rgba(240,237,230,.7);transform:scale(1.3)}
+  @media (hover:hover){.dot:hover{background:rgba(240,237,230,.7);transform:scale(1.3)}}
   .dot.cur{background:var(--gold);box-shadow:0 0 10px rgba(232,181,106,.75);transform:scale(1.45)}
   .dot:focus-visible{outline:2px solid var(--gold);outline-offset:3px}
 
@@ -63,52 +66,74 @@
     font-size:clamp(28px,5.6vw,60px);color:var(--ink)}
 
   /* ---------- controls ---------- */
-  #controls{position:fixed;right:22px;bottom:22px;display:flex;flex-direction:column;
+  #controls{position:fixed;right:calc(22px + env(safe-area-inset-right,0px));
+    bottom:calc(22px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;
     align-items:flex-end;gap:10px;z-index:30}
   #ctx{display:flex;flex-direction:column;gap:8px;align-items:flex-end}
   .pill,.rnd{font-family:'Outfit',sans-serif;color:var(--ink);background:var(--panel);
     border:1px solid var(--line);backdrop-filter:blur(10px);cursor:pointer;
-    transition:border-color .25s, background .25s}
+    touch-action:manipulation;transition:border-color .25s, background .25s}
   .pill{border-radius:999px;padding:9px 16px;font-size:13.5px;letter-spacing:.05em;font-weight:400}
-  .pill:hover{border-color:var(--gold)}
   .rnd{width:44px;height:44px;border-radius:50%;font-size:16px;display:grid;place-items:center}
-  .rnd:hover{border-color:var(--gold)}
+  @media (hover:hover){
+    .pill:hover{border-color:var(--gold)}
+    .rnd:hover{border-color:var(--gold)}
+  }
   .rnd.active{color:var(--gold);border-color:rgba(232,181,106,.55)}
   #navrow{display:flex;gap:10px}
   #btnSpeed{font-size:14px;letter-spacing:.02em;font-weight:500}
-  #btnFacts{font-family:'Fraunces',serif;font-style:italic;font-size:18px}
+  #btnFacts.off{opacity:.35;pointer-events:none}
+  #btnFacts.nudge{animation:factsNudge 2.4s ease 1}
+  @keyframes factsNudge{
+    0%,100%{border-color:var(--line);box-shadow:none}
+    45%{border-color:rgba(232,181,106,.8);box-shadow:0 0 18px rgba(232,181,106,.4)}
+  }
 
-  /* ---------- did-you-know drawer ---------- */
-  #factsWrap{position:fixed;left:50%;bottom:0;transform:translate(-50%,105%);z-index:45;
-    width:min(92vw,560px);transition:transform .45s cubic-bezier(.22,.9,.3,1);pointer-events:none}
-  #factsWrap.on{transform:translate(-50%,0);pointer-events:auto}
-  #facts{background:rgba(8,12,18,.82);border:1px solid var(--line);border-bottom:none;
-    backdrop-filter:blur(14px);border-radius:16px 16px 0 0;padding:20px 24px 26px;
-    max-height:52vh;overflow:auto}
-  #factsHead{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:10px}
-  #factsTitle{font-family:'Fraunces',serif;font-size:19px;color:var(--gold);letter-spacing:.02em}
-  #factsClose{background:none;border:none;color:var(--haze);font-size:22px;line-height:1;
-    cursor:pointer;padding:2px 6px}
-  #factsClose:hover{color:var(--ink)}
-  #factsList{margin:0;padding:0}
-  #factsList li{list-style:none;position:relative;padding-left:18px;margin:9px 0;
-    font-weight:300;font-size:14.5px;line-height:1.55;color:var(--ink)}
-  #factsList li::before{content:"";position:absolute;left:2px;top:9px;width:5px;height:5px;
-    border-radius:50%;background:var(--gold)}
+  /* ---------- field notes (did you know?) ---------- */
+  #facts{position:fixed;left:24px;bottom:64px;width:min(360px,34vw);z-index:35;
+    background:var(--panel);border:1px solid var(--line);backdrop-filter:blur(10px);
+    border-radius:14px;padding:16px 18px 12px;
+    opacity:0;transform:translateY(10px);transition:opacity .45s ease,transform .45s ease;
+    pointer-events:none}
+  #facts.show{opacity:1;transform:translateY(0);pointer-events:auto}
+  #factsKick{font-family:'Fraunces',serif;font-style:italic;font-size:13px;color:var(--gold);
+    letter-spacing:.12em}
+  #factsStop{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--haze);
+    margin-top:2px}
+  #factBody{font-weight:300;font-size:15.5px;line-height:1.6;color:var(--ink);
+    margin:10px 0 12px;min-height:3.2em;max-height:9.6em;overflow-y:auto;
+    transition:opacity .18s ease}
+  #factsFoot{display:flex;align-items:center;gap:10px}
+  .fx{width:32px;height:32px;border-radius:50%;color:var(--ink);background:var(--panel);
+    border:1px solid var(--line);backdrop-filter:blur(10px);cursor:pointer;font-size:15px;
+    display:grid;place-items:center;touch-action:manipulation;transition:border-color .25s}
+  @media (hover:hover){.fx:hover{border-color:var(--gold)}}
+  .fx:disabled{opacity:.3;cursor:default}
+  .fx:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+  #factCount{font-size:11.5px;letter-spacing:.14em;color:var(--haze)}
+  #factsHint{margin-left:auto;font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;
+    color:rgba(147,164,182,.55)}
+  #factsClose{position:absolute;top:8px;right:10px;background:none;border:none;
+    color:var(--haze);font-size:20px;line-height:1;cursor:pointer;padding:2px 6px}
+  @media (hover:hover){#factsClose:hover{color:var(--ink)}}
 
   /* ---------- touch ---------- */
   @media (pointer:coarse){
-    .dot{width:11px;height:11px}
-    #dots{gap:13px}
+    .rnd{width:46px;height:46px}
+    #navrow{gap:12px}
+    .dot::after{content:"";position:absolute;inset:-12px -4px}
+    #dots{gap:12px}
   }
-  @media (max-width:430px){
-    .rnd{width:40px;height:40px}
-    #navrow{gap:7px}
-    #controls{right:14px;bottom:14px}
+  @media (pointer:coarse) and (max-width:390px){
+    .rnd{width:42px;height:42px}
+    #navrow{gap:8px}
   }
   .pill:focus-visible,.rnd:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
-  #hintkeys{position:fixed;left:24px;bottom:26px;font-size:11.5px;letter-spacing:.12em;
-    text-transform:uppercase;color:rgba(147,164,182,.55);z-index:20;pointer-events:none}
+  #hintkeys{position:fixed;left:calc(24px + env(safe-area-inset-left,0px));
+    bottom:calc(26px + env(safe-area-inset-bottom,0px));font-size:11.5px;letter-spacing:.12em;
+    text-transform:uppercase;color:rgba(147,164,182,.55);z-index:20;pointer-events:none;
+    transition:opacity 1.2s}
+  #hintkeys.faded{opacity:0}
   #credit{position:fixed;left:24px;bottom:8px;font-size:10.5px;letter-spacing:.05em;
     color:rgba(147,164,182,.5);z-index:20;pointer-events:none;opacity:0;transition:opacity 1.2s}
   #credit.on{opacity:1}
@@ -119,8 +144,9 @@
     color:var(--haze);text-shadow:0 1px 8px rgba(0,0,0,.9);white-space:nowrap;transition:opacity .3s}
   #tip{position:fixed;pointer-events:none;z-index:40;background:var(--panel);border:1px solid var(--line);
     backdrop-filter:blur(8px);border-radius:8px;padding:5px 11px;font-size:12.5px;letter-spacing:.08em;
-    color:var(--ink);opacity:0;transition:opacity .2s;transform:translate(14px,-30px)}
+    color:var(--ink);opacity:0;transition:opacity .2s;transform:translate(14px,-30px);max-width:70vw}
   #tip.on{opacity:1}
+  #tip.touch{transform:translate(-50%,-56px)}
 
   /* ---------- fader ---------- */
   #fader{position:fixed;inset:0;background:#000;opacity:0;pointer-events:none;
@@ -143,7 +169,7 @@
   #begin{margin-top:44px;font-size:15px;letter-spacing:.2em;text-transform:uppercase;
     padding:15px 42px;border-radius:999px;background:transparent;border:1px solid var(--gold);
     color:var(--gold);cursor:pointer;transition:all .3s;font-family:'Outfit',sans-serif}
-  #begin:hover{background:rgba(232,181,106,.12);box-shadow:0 0 34px rgba(232,181,106,.25)}
+  @media (hover:hover){#begin:hover{background:rgba(232,181,106,.12);box-shadow:0 0 34px rgba(232,181,106,.25)}}
   #musicRow{margin-top:26px;display:flex;gap:9px;align-items:center;font-size:13.5px;
     letter-spacing:.08em;color:var(--haze)}
   #musicRow input{accent-color:var(--gold);width:15px;height:15px;cursor:pointer}
@@ -168,8 +194,16 @@
   @media (max-height:640px){
     #capzone{bottom:118px}
   }
+  @media (pointer:coarse){
+    #hintkeys{display:block}
+    #facts{left:12px;right:12px;bottom:calc(64px + env(safe-area-inset-bottom,0px));
+      width:auto;max-height:38vh;overflow-y:auto}
+    body.facts-open #capzone{opacity:0;transition:opacity .3s}
+    .fx{width:40px;height:40px}
+  }
   @media (prefers-reduced-motion: reduce){
-    #cap,#fader,#splash{transition-duration:.15s}
+    #cap,#fader,#splash,#facts{transition-duration:.15s}
+    #btnFacts.nudge{animation:none}
   }
   .rnd svg{width:56%;height:56%;display:block;margin:auto;pointer-events:none}
 </style>
@@ -195,20 +229,26 @@
     <button class="rnd" id="btnPrev" title="Previous stop (left arrow)" aria-label="Previous stop"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 5h2.4v14H7zM17.8 5.6v12.8L9.9 12z"/></svg></button>
     <button class="rnd" id="btnPlay" title="Play / pause the tour (space)" aria-label="Play or pause"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M7.5 5h3.2v14H7.5zM13.3 5h3.2v14h-3.2z"/></svg></button>
     <button class="rnd" id="btnNext" title="Next stop (right arrow)" aria-label="Next stop"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M14.6 5H17v14h-2.4zM6.2 5.6v12.8L14.1 12z"/></svg></button>
-    <button class="rnd" id="btnFacts" title="Did you know? (i)" aria-label="Did you know?">?</button>
+    <button class="rnd" id="btnFacts" title="Did you know? (d)" aria-label="Did you know? Facts about this stop" aria-expanded="false"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 3.2l1.9 6.9 6.9 1.9-6.9 1.9-1.9 6.9-1.9-6.9L3.2 12l6.9-1.9z"/></svg></button>
     <button class="rnd" id="btnSpeed" title="Travel speed (f)" aria-label="Travel speed">1×</button>
     <button class="rnd" id="btnMusic" title="Gentle music (m)" aria-label="Toggle music"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M9 17.2V6.6l9-1.8v10.1a2.9 2.9 0 1 0 1.2 2.36V3.3L7.8 5.5v9.4A2.9 2.9 0 1 0 9 17.2z"/></svg></button>
   </div>
 </div>
-<div id="hintkeys">← → travel · space pause · f speed · i facts · hover a world for its name</div>
+<div id="hintkeys">← → travel · space pause · d did you know · f speed · hover a world for its name</div>
 <div id="credit"></div>
 
-<div id="factsWrap" role="dialog" aria-label="Did you know?">
-  <div id="facts">
-    <div id="factsHead"><div id="factsTitle"></div><button id="factsClose" aria-label="Close">×</button></div>
-    <ul id="factsList"></ul>
+<aside id="facts" role="dialog" aria-modal="false" aria-labelledby="factsKick" tabindex="-1">
+  <button id="factsClose" aria-label="Close facts">×</button>
+  <div id="factsKick">Did you know?</div>
+  <div id="factsStop"></div>
+  <p id="factBody" aria-live="polite"></p>
+  <div id="factsFoot">
+    <button id="factPrev" class="fx" aria-label="Previous fact">‹</button>
+    <span id="factCount"></span>
+    <button id="factNext" class="fx" aria-label="Next fact">›</button>
+    <span id="factsHint">← → browse · esc close</span>
   </div>
-</div>
+</aside>
 
 <div id="fader"><div id="faderNote"></div></div>
 
@@ -218,7 +258,7 @@
   <div class="sub">Neptune → the Sun &nbsp;·&nbsp; no narration — just space</div>
   <button id="begin">Begin the journey</button>
   <div id="musicRow"><input type="checkbox" id="musicChk" checked><label for="musicChk">Gentle instrumental music</label></div>
-  <div class="keys">Sit back — the tour plays itself. Use ← → or the dots to travel freely.</div>
+  <div class="keys">Sit back — the tour plays itself. Use ← → or the dots to travel freely. Press d for field notes at any stop.</div>
   <div id="loadmsg"></div>
 </div>
 
@@ -275,7 +315,7 @@ function fbm(x,y,z,s,o){o=o||4;let a=.5,f=1,t=0;
 /* ================================================================
    1 · TEXTURE PAINTERS (every world is painted live)
 ================================================================ */
-function texFrom(c,srgb){const t=new THREE.CanvasTexture(c);if(srgb!==false)t.encoding=THREE.sRGBEncoding;t.anisotropy=renderer.capabilities.getMaxAnisotropy();return t;}
+function texFrom(c,srgb){const t=new THREE.CanvasTexture(c);if(srgb!==false)t.encoding=THREE.sRGBEncoding;t.anisotropy=Math.min(renderer.capabilities.getMaxAnisotropy(),COARSE?4:16);return t;}
 function paint(w,h,fn,post){
   const c=document.createElement('canvas');c.width=w;c.height=h;
   const x=c.getContext('2d');const img=x.createImageData(w,h);const d=img.data;
@@ -632,11 +672,13 @@ function buildTextures(step){
 /* ================================================================
    2 · SCENE SCAFFOLD
 ================================================================ */
+/* touch-primary device: gates hints, texture budgets, pixel ratio */
+const COARSE=matchMedia('(hover: none) and (pointer: coarse)').matches;
 let renderer,scene,camera;
 try{
   renderer=new THREE.WebGLRenderer({canvas:document.getElementById('sky'),antialias:true});
 }catch(e){ fatal('WebGL is not available in this browser.'); return; }
-renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+renderer.setPixelRatio(Math.min(devicePixelRatio,COARSE?1.5:2));
 renderer.setSize(innerWidth,innerHeight);
 renderer.outputEncoding=THREE.sRGBEncoding;
 renderer.toneMapping=THREE.ACESFilmicToneMapping;
@@ -670,6 +712,10 @@ addEventListener('resize',()=>{
   camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();
   renderer.setSize(innerWidth,innerHeight);
   if(cur>=0&&stops[cur]&&stops[cur].layout)stops[cur].layout(camera.aspect);
+});
+/* iOS reports stale dimensions at rotate time; re-run once settled */
+addEventListener('orientationchange',()=>{
+  setTimeout(()=>dispatchEvent(new Event('resize')),250);
 });
 
 /* ---- reusable builders ---- */
@@ -913,6 +959,10 @@ const BUILDERS=[
     {t:'Deep Space',k:'title'},
     {t:'The quiet edge of our planetary system',k:'sub'},
     {t:'From here, the Sun is only a very bright star',k:'sub'}],
+  facts:[
+    'Space is almost perfectly empty — far emptier than any vacuum we can make on Earth.',
+    'It is completely silent out here: sound needs air to travel, and space has none.',
+    'Light is the fastest thing there is — and even light needs more than four years to reach the next star beyond the Sun.'],
   path:makePath([{u:0,p:[0,0,16],l:[0,1,-200]},{u:1,p:[0,.2,3],l:[0,1,-200]}]),
   build(g,st){
     sunLight(g,[0,18,55],.55,175);
@@ -932,6 +982,11 @@ const BUILDERS=[
     {t:'Ice giant',k:'sub'},
     {t:'Its winds are the fastest of any planet',k:'sub'},
     {t:'Triton, its largest moon, glides nearby',k:'sub'}],
+  facts:[
+    'Sunlight takes about four hours to reach Neptune. By the time it arrives, noon here looks like a deep blue evening.',
+    'One year on Neptune lasts 165 Earth years — it has circled the Sun only once since astronomers found it in 1846.',
+    'Neptune was discovered with math before any telescope saw it: something unseen was tugging at Uranus, and astronomers worked out where to look.',
+    'Triton orbits backwards — the only large moon that does. It may be a visitor, captured long ago from the icy edge of the system.'],
   path:makePath([
     {u:0,p:[0,.7,12],l:[0,0,0]},
     {u:.55,p:[2.6,.9,7.4],l:[.3,0,0]},
@@ -954,6 +1009,11 @@ const BUILDERS=[
     {t:'Ice giant',k:'sub'},
     {t:'Uranus rotates almost on its side',k:'sub'},
     {t:'Its five largest moons: Miranda · Ariel · Umbriel · Titania · Oberon',k:'sub'}],
+  facts:[
+    'Because it lies tipped over, each season on Uranus lasts about 21 Earth years.',
+    'Its air is the coldest of any planet, dropping below −220 °C.',
+    'It was the first planet found with a telescope — William Herschel spotted it in 1781.',
+    'Most of its moons are named after characters from Shakespeare.'],
   path:makePath([
     {u:0,p:[0,.5,11.5],l:[0,0,0]},
     {u:.6,p:[-1.7,.85,8.4],l:[-.3,0,0]},
@@ -982,6 +1042,11 @@ const BUILDERS=[
     {t:'Gas giant',k:'sub'},
     {t:'Its rings are countless pieces of drifting ice',k:'sub'},
     {t:'Titan and icy Enceladus circle far beyond the rings',k:'sub'}],
+  facts:[
+    'Saturn is the lightest planet for its size. If you could find an ocean big enough, it would float.',
+    'The rings are wider than twenty Earths set side by side — yet in most places only about as thick as a house.',
+    'On little Enceladus, fountains of water spray out through cracks in the ice — signs of a hidden ocean underneath.',
+    'The rings may be temporary: in a few hundred million years they could slowly rain away into the planet.'],
   path:makePath([
     {u:0,p:[0,-.7,12.4],l:[0,.1,0]},
     {u:.5,p:[1.5,2.5,9.6],l:[0,0,0]},
@@ -1010,6 +1075,11 @@ const BUILDERS=[
     {t:'Largest planet — over 1,300 Earths could fit inside',k:'sub'},
     {t:'The Great Red Spot is a storm wider than Earth',k:'sub'},
     {t:'Its four great moons shine as nearby points of light',k:'sub'}],
+  facts:[
+    'Jupiter weighs more than twice as much as all the other planets put together.',
+    'The Great Red Spot has been raging for at least 190 years — telescopes have watched it since the 1800s.',
+    'Its moon Ganymede is the largest in the solar system — bigger than the planet Mercury.',
+    'Jupiter spins faster than any other planet: a full day takes less than 10 hours.'],
   path:makePath([
     {u:0,p:[0,.8,17],l:[0,0,0]},
     {u:.55,p:[-2.0,.9,11.6],l:[-.2,0,0]},
@@ -1038,6 +1108,10 @@ const BUILDERS=[
     {t:'It lies between the orbits of Mars and Jupiter',k:'sub'},
     {t:'Millions of rocks — yet mostly empty space',k:'sub'},
     {t:'Ceres — the largest of them, a dwarf planet',k:'sub'}],
+  facts:[
+    'All the asteroids here put together weigh less than our Moon.',
+    'The rocks are so far apart that spacecraft fly straight through the belt without coming close to one.',
+    'These are leftovers from 4.6 billion years ago — building blocks that never became a planet.'],
   path:makePath([
     {u:0,p:[38,60,120],l:[0,4,0]},
     {u:.42,p:[-6,16,44],l:[-18,0,-14]},
@@ -1068,7 +1142,7 @@ const BUILDERS=[
     dust.quaternion.setFromRotationMatrix(bas);
     dust.position.set(C[0],C[1],C[2]);
     g.add(dust);
-    const NP=4500,pp=new Float32Array(NP*3),tp=[0,0,0];
+    const NP=COARSE?2600:4500,pp=new Float32Array(NP*3),tp=[0,0,0];
     for(let i=0;i<NP;i++){
       beltPos((h3(i,1,22,171)-.5)*.21,(h3(i,2,22,171)-.5)*26,(h3(i,3,22,171)-.5)*7,tp);
       pp[i*3]=tp[0];pp[i*3+1]=tp[1];pp[i*3+2]=tp[2];
@@ -1081,7 +1155,7 @@ const BUILDERS=[
       blending:THREE.AdditiveBlending,depthWrite:false}));
     g.add(st.dustPts);
     st.rocks=[];
-    for(let i=0;i<210;i++){
+    for(let i=0,NR=COARSE?100:210;i<NR;i++){
       const r=rock(.07+.4*Math.pow(h3(i,7,22,171),1.8),0x6f6a62,i+50);
       r.userData.o={th:(h3(i,4,22,173)-.5)*.2,rr:(h3(i,5,22,171)-.5)*22,
         h:(h3(i,6,22,171)-.5)*6.5,sp:.00028+.00022*h3(i,8,22,171),
@@ -1112,6 +1186,11 @@ const BUILDERS=[
     {t:'Rocky planet',k:'sub'},
     {t:'Home to the tallest volcano and a vast canyon',k:'sub'},
     {t:'Two tiny moons, Phobos and Deimos, hurry around it',k:'sub'}],
+  facts:[
+    'That volcano is Olympus Mons — nearly three times the height of Mount Everest.',
+    'Mars is red because its soil is rusty: iron in the dust slowly oxidized, like old metal left outside.',
+    'A day on Mars is only 40 minutes longer than ours — but its year is nearly two Earth years.',
+    'Sunsets on Mars are blue: the fine dust scatters light the opposite way to Earth’s sky.'],
   path:makePath([
     {u:0,p:[0,.5,9.5],l:[0,0,0]},
     {u:.55,p:[-1.4,.68,6.6],l:[-.2,0,0]},
@@ -1135,6 +1214,11 @@ const BUILDERS=[
     {t:'Earth and the Moon at true relative size',k:'sub'},
     {t:'The Moon',k:'title'},
     {t:'Ancient, cratered, and silent',k:'sub'}],
+  facts:[
+    'Oceans cover almost three-quarters of Earth — from out here, it is a blue world.',
+    'The Moon drifts about 4 cm farther away every year — about as fast as your fingernails grow.',
+    'Moonlight is sunlight bouncing off gray rock; it reaches us 1.3 seconds after leaving the Moon.',
+    'Right now, Earth is carrying you around the Sun at 30 km every second.'],
   path:makePath([
     {u:0,p:[-7,1.1,2.5],l:[0,0,0]},
     {u:.3,p:[3,1,7.9],l:[0,0,0]},
@@ -1162,6 +1246,11 @@ const BUILDERS=[
     {t:'Venus',k:'title'},
     {t:'2nd planet from the Sun',k:'sub'},
     {t:'Rocky planet — hidden beneath thick clouds',k:'sub'}],
+  facts:[
+    'Venus is the hottest planet — hotter than Mercury — because its thick air traps heat like a greenhouse.',
+    'A day on Venus is longer than its year: it spins that slowly.',
+    'It also spins backwards — on Venus, the Sun rises in the west.',
+    'After the Sun and Moon, Venus is the brightest natural light in our sky.'],
   path:makePath([{u:0,p:[0,.4,8.5],l:[0,0,0]},{u:1,p:[1.8,.6,5.6],l:[0,0,0]}]),
   build(g,s){
     sunLight(g,[8,2,6],1.1);
@@ -1182,6 +1271,10 @@ const BUILDERS=[
     {t:'Smallest planet',k:'sub'},
     {t:'Rocky, cratered and almost airless',k:'sub'},
     {t:'Days here scorch · nights freeze',k:'sub'}],
+  facts:[
+    'By day it reaches about 430 °C; by night it falls to −180 °C. With almost no air, nothing holds the warmth.',
+    'A year on Mercury is just 88 Earth days — the shortest of any planet.',
+    'It is not much bigger than our Moon — and it is slowly shrinking as its iron heart cools.'],
   path:makePath([
     {u:0,p:[0,.5,7.5],l:[0,0,0]},
     {u:.6,p:[-1.5,.68,5.6],l:[-.25,0,0]},
@@ -1203,6 +1296,18 @@ const BUILDERS=[
     {t:'Light from the Sun takes about 8 minutes to reach Earth',k:'sub'},
     {t:'Never look straight at the real Sun!',k:'sub'},
     {t:'Tap the button for a false-color scientific view',k:'note'}],
+  facts:[
+    'The Sun holds more than 99% of everything in the solar system — all the planets share the tiny leftover.',
+    'About one million Earths could fit inside it.',
+    'The sunlight warming your face is older than it seems: it bounced around inside the Sun for thousands of years before escaping.',
+    'The Sun is a middle-aged star — about 4.6 billion years old, with billions of bright years still ahead.'],
+  ctx:[{label:function(){return st.body.material.uniforms.fcMode.value?'☉  Natural view':'☉  False-color view';},
+    run:function(){
+      const u=st.body.material.uniforms.fcMode;u.value=u.value?0:1;
+      const sci=!!u.value;   /* science view: bare disc, no atmosphere glow */
+      st.glow.visible=!sci;st.corona.visible=!sci;st.chromo.visible=!sci;
+      buildCtx(st);
+    }}],
   path:makePath([{u:0,p:[0,.5,16],l:[0,0,0]},{u:1,p:[2.2,.8,12.5],l:[0,0,0]}]),
   build(g,s){
     s.body=name(spin(new THREE.Mesh(new THREE.SphereGeometry(3,96,64),makeSunMaterial()),.004),'The Sun',s);
@@ -1345,6 +1450,10 @@ const BUILDERS=[
   captions:[
     {t:'',k:'sub'},
     {t:'Keep looking up.',k:'fin'}],
+  facts:[
+    'Voyager 1, launched in 1977, is the farthest human-made object — and it is still calling home.',
+    'From out there, Earth is a single pale blue dot: everyone who ever lived, on one small point of light.',
+    'The journey you just took spans about 4.5 billion km. Light crosses it in just over four hours.'],
   path:makePath([{u:0,p:[0,.35,11],l:[0,0,0]},{u:1,p:[0,.28,8.4],l:[0,0,0]}]),
   build(g,st){
     sunLight(g,[6,2.5,4],1.2);
@@ -1374,6 +1483,7 @@ const splash=document.getElementById('splash');
 
 let cur=-1, stopClock=0, capIdx=-1, playing=true, trans=false;
 let TR=null, GT=0, lastLook=[0,0,0];
+let factsOpen=false, factIdx=0, factsSeen=false;
 const RM=matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 function showCap(c){
@@ -1428,11 +1538,12 @@ function dotsUpdate(){
   const ds=dotsEl.children;
   for(let i=0;i<ds.length;i++)ds[i].classList.toggle('cur',i===cur);
 }
-function hideTip(){tipEl.classList.remove('on');}
+function hideTip(){tipEl.classList.remove('on');clearTimeout(tipT);}
 function activate(i){
   if(cur>10)stops[cur].group.visible=false;
   clearLabels();setPinned('');hideTip();
   cur=i;const st=stops[i];
+  closeFacts(false);syncFactsBtn(st);
   audio.setStop(i,1.2);
   st.group.visible=true;
   if(st.layout)st.layout(camera.aspect);
@@ -1508,11 +1619,14 @@ function transitTo(j){
     path:tpath};
   audio.whoosh(TR.dur/SPD);
   audio.setStop(j,TR.dur*.38);   /* harmony glides to the new key mid-flight */
+  closeFacts(false);
   capEl.classList.remove('show');capIdx=-1;hideTip();
 }
 function finishTransit(){
   const j=TR.to;TR=null;
   cur=j;const st=stops[j];
+  syncFactsBtn(st);
+  if(j===1&&!factsSeen&&!RM)btnFacts.classList.add('nudge');
   audio.arrive(j);
   stopClock=0;capIdx=-1;
   clearLabels();setPinned('');hideTip();
@@ -1523,8 +1637,9 @@ function finishTransit(){
 function gotoStop(i,instant){
   if(TR||trans||i<0||i>=stops.length)return;
   if(i===cur&&!instant)return;
-  factsClose(true);                       /* navigation dismisses the drawer */
-  if(!instant&&i===cur+1&&i<=10&&cur>=0){transitTo(i);return;}
+  /* flown transits only advance while playing — route paused travel
+     through the fader so nobody strands mid-flight */
+  if(!instant&&playing&&i===cur+1&&i<=10&&cur>=0){transitTo(i);return;}
   trans=true;
   faderNote.textContent='';
   fader.classList.add('on');
@@ -1534,51 +1649,78 @@ function gotoStop(i,instant){
   },instant?60:800);
 }
 
-/* hover tooltips (mouse; touch names worlds on tap below) */
+/* hover tooltips (mouse only; touch names worlds on tap below) */
 const ray=new THREE.Raycaster();const ndc=new THREE.Vector2();
 addEventListener('pointermove',function(e){
-  if(e.pointerType==='touch')return;
-  if(cur<0||trans)return;
+  if(e.pointerType&&e.pointerType!=='mouse')return;
+  if(cur<0||trans||TR)return;
   ndc.x=(e.clientX/innerWidth)*2-1;ndc.y=-(e.clientY/innerHeight)*2+1;
   ray.setFromCamera(ndc,camera);
   const hit=ray.intersectObjects(stops[cur].hover,false)[0];
   if(hit){
     tipEl.textContent=hit.object.userData.name;
+    tipEl.classList.remove('touch');
     tipEl.style.left=e.clientX+'px';tipEl.style.top=e.clientY+'px';
     tipEl.classList.add('on');
   }else hideTip();
 });
 
-/* touch: swipe to travel, tap a world for its name */
-let swId=null,swX=0,swY=0,swT=0,tipT=0;
-addEventListener('pointerdown',function(e){
-  if(e.pointerType!=='touch'||!splash.classList.contains('off'))return;
-  if(swId!==null){swId=-1;return;}        /* second finger: not a swipe */
-  if(e.target.closest('#controls,#dots,#factsWrap'))return;
-  swId=e.pointerId;swX=e.clientX;swY=e.clientY;swT=performance.now();
+/* touch: swipe to travel, tap a world for its name.
+   Gestures attach to the canvas only — interactive UI sits above it
+   and swallows its own pointer events, so no target checks needed. */
+const skyEl=document.getElementById('sky');
+let sw=null,tipT=0;
+function tapHit(x,y){
+  ndc.x=(x/innerWidth)*2-1;ndc.y=-(y/innerHeight)*2+1;
+  ray.setFromCamera(ndc,camera);
+  const hit=ray.intersectObjects(stops[cur].hover,false)[0];
+  if(hit)return hit.object;
+  /* fat-finger assist: accept the nearest world within 44 px */
+  let best=null,bd=44;
+  for(const o of stops[cur].hover){
+    o.getWorldPosition(_v);_v.project(camera);
+    if(_v.z>=1)continue;
+    const d=Math.hypot((_v.x*.5+.5)*innerWidth-x,(-_v.y*.5+.5)*innerHeight-y);
+    if(d<bd){bd=d;best=o;}
+  }
+  return best;
+}
+skyEl.addEventListener('pointerdown',function(e){
+  if(e.pointerType==='mouse'||!splash.classList.contains('off'))return;
+  if(sw){sw.dead=true;return;}            /* second finger: not a gesture */
+  sw={id:e.pointerId,x0:e.clientX,y0:e.clientY,t0:performance.now(),
+      dead:(e.clientX<24||e.clientX>innerWidth-24)}; /* iOS edge-swipe zones */
+  try{skyEl.setPointerCapture(e.pointerId);}catch(_){}
 });
-addEventListener('pointercancel',function(e){if(e.pointerId===swId||swId===-1)swId=null;});
-addEventListener('pointerup',function(e){
-  if(e.pointerType!=='touch')return;
-  if(e.pointerId!==swId){if(swId===-1)swId=null;return;}
-  swId=null;
-  const dx=e.clientX-swX,dy=e.clientY-swY,el=performance.now()-swT;
-  if(el<650&&Math.abs(dx)>60&&Math.abs(dx)>2*Math.abs(dy)){
+skyEl.addEventListener('pointercancel',function(e){
+  if(sw&&e.pointerId===sw.id)sw=null;     /* OS stole the gesture */
+});
+skyEl.addEventListener('pointerup',function(e){
+  if(!sw||e.pointerId!==sw.id)return;
+  const g=sw;sw=null;
+  if(g.dead)return;
+  const dx=e.clientX-g.x0,dy=e.clientY-g.y0,el=performance.now()-g.t0;
+  const ax=Math.abs(dx),ay=Math.abs(dy);
+  const swipe=(el<=700&&ax>=Math.max(48,innerWidth*.12)&&ax>=1.6*ay)||
+              (ax>=32&&ax/el>=.45&&ax>=1.6*ay);   /* deliberate or flick */
+  if(swipe){
+    hintFade();
     gotoStop(dx<0?cur+1:cur-1);
-  }else if(el<400&&Math.abs(dx)<12&&Math.abs(dy)<12){
-    if(factsWrap.classList.contains('on')){factsClose();return;}
+  }else if(el<400&&Math.hypot(dx,dy)<12){
+    if(factsOpen){closeFacts(false);return;}      /* tap outside closes notes */
     if(cur<0||trans||TR)return;
-    ndc.x=(e.clientX/innerWidth)*2-1;ndc.y=-(e.clientY/innerHeight)*2+1;
-    ray.setFromCamera(ndc,camera);
-    const hit=ray.intersectObjects(stops[cur].hover,false)[0];
-    if(hit){
-      tipEl.textContent=hit.object.userData.name;
-      tipEl.style.left=e.clientX+'px';tipEl.style.top=e.clientY+'px';
-      tipEl.classList.add('on');
-      clearTimeout(tipT);tipT=setTimeout(hideTip,2200);
+    const o=tapHit(e.clientX,e.clientY);
+    if(o){
+      tipEl.textContent=o.userData.name;
+      tipEl.classList.add('on','touch');
+      const w=tipEl.offsetWidth;
+      tipEl.style.left=Math.max(12+w/2,Math.min(innerWidth-12-w/2,e.clientX))+'px';
+      tipEl.style.top=e.clientY+'px';
+      clearTimeout(tipT);tipT=setTimeout(hideTip,2500);
     }else hideTip();
   }
 });
+function hintFade(){document.getElementById('hintkeys').classList.add('faded');}
 
 /* main loop */
 let last=performance.now();
@@ -1621,7 +1763,8 @@ function tick(now){
     if(TR.t>=TR.dur)finishTransit();
   }else{
     const st=stops[cur];
-    if(playing&&!trans)stopClock+=jdt;
+    /* field notes hold the itinerary clock; the world keeps living */
+    if(playing&&!trans&&!factsOpen)stopClock+=jdt;
     const u=st.camDur?Math.min(stopClock/st.camDur,1):0;
     const c=st.path(u);
     let cpx=c.pos[0],cpy=c.pos[1],cpz=c.pos[2];
@@ -1645,7 +1788,7 @@ function tick(now){
       }else idx=Math.min(Math.floor(stopClock/st.slot),st.captions.length-1);
       if(idx!==capIdx){capIdx=idx;showCap(st.captions[idx]);}
     }
-    if(playing&&!trans&&isFinite(st.dur)&&stopClock>st.dur+.05&&cur<stops.length-1)
+    if(playing&&!trans&&!factsOpen&&isFinite(st.dur)&&stopClock>st.dur+.05&&cur<stops.length-1)
       gotoStop(cur+1);
     updLabels(st);
   }
@@ -2049,92 +2192,81 @@ const audio={ctx:null,on:false,master:null,verb:null,lp:null,voices:null,wgain:n
   }
 };
 document.addEventListener('visibilitychange',function(){
-  if(!document.hidden&&audio.on&&audio.ctx&&audio.ctx.state==='suspended')audio.ctx.resume();
+  if(document.hidden)return;
+  if(audio.on&&audio.ctx&&audio.ctx.state==='suspended')audio.ctx.resume();
+  if(started)reWake();               /* wake locks release on tab switch */
 });
+/* keep the screen awake through a hands-off tour (fails silently) */
+let wlock=null;
+function reWake(){
+  if(!navigator.wakeLock)return;
+  navigator.wakeLock.request('screen').then(function(l){wlock=l;}).catch(function(){});
+}
 
 /* ================================================================
    6 · UI WIRING
 ================================================================ */
-/* ---------- did you know? — three or four wonders per stop ---------- */
-const FACTS=[
- ['Space is almost perfectly empty — far emptier than any vacuum we can make on Earth.',
-  'Out here it is completely silent: sound needs air to travel, and space has none.',
-  'The nearest star beyond the Sun is so far away that its light takes over 4 years to reach us.'],
- ['Neptune has the fastest winds in the solar system — up to 2,000 km/h, faster than any hurricane on Earth.',
-  'It was discovered with mathematics before anyone saw it, predicted from the way it tugged on Uranus.',
-  'One year on Neptune lasts 165 Earth years — it has completed just one orbit since its discovery in 1846.',
-  'Its big moon Triton circles the planet backwards — the only large moon in the solar system that does.'],
- ['Uranus rolls around the Sun on its side, so its poles take turns pointing at the Sun.',
-  'Each season there lasts about 21 Earth years.',
-  'Its atmosphere is the coldest of any planet, dropping below −220 °C.',
-  'Most of its moons are named after characters from Shakespeare.'],
- ['Saturn’s rings are billions of chunks of nearly pure water ice — some like dust grains, some like houses.',
-  'The rings span wider than 20 Earths side by side, yet in most places they are only tens of meters thick.',
-  'Saturn is so light for its size that it would float — if you could find a big enough bathtub.',
-  'A day on Saturn lasts just 10.7 hours: the giant spins remarkably fast.'],
- ['Jupiter is so big that more than 1,300 Earths could fit inside it.',
-  'The Great Red Spot is a storm wider than Earth that has raged for at least 190 years.',
-  'Its moon Ganymede is the largest moon in the solar system — bigger than the planet Mercury.',
-  'Jupiter has the shortest day of any planet, spinning once in under 10 hours.'],
- ['All the asteroids in the belt together weigh less than our Moon.',
-  'Asteroids are so far apart that spacecraft fly straight through without coming close to one.',
-  'They are leftovers from 4.6 billion years ago — building blocks that never became a planet.',
-  'Ceres, the largest object here, is a dwarf planet holding about a third of the belt’s entire mass.'],
- ['Olympus Mons is the tallest volcano in the solar system — nearly three times the height of Mount Everest.',
-  'Mars is red because its soil is rusty: iron in the dust oxidized, like old metal left outside.',
-  'A Martian day is 24.6 hours, almost the same as ours — but its year is nearly two Earth years.',
-  'Sunsets on Mars are blue: the fine dust scatters light the opposite way to Earth’s sky.'],
- ['Earth is the only place we know of — anywhere — with life.',
-  'Seen from space, Earth is a water world: oceans cover 71% of its surface.',
-  'The Moon drifts about 4 cm farther from Earth every year — about as fast as your fingernails grow.',
-  'Moonlight is really sunlight bouncing off gray rock, reaching us 1.3 seconds after it leaves the Moon.'],
- ['Venus is the hottest planet — about 465 °C — even though Mercury is closer to the Sun: its thick air traps the heat.',
-  'A day on Venus is longer than its year — it spins that slowly.',
-  'It also spins backwards: on Venus, the Sun rises in the west.',
-  'After the Sun and Moon, Venus is the brightest natural object in our sky.'],
- ['Mercury swings from about 430 °C by day to −180 °C at night — with almost no air to hold the warmth.',
-  'Its year is just 88 Earth days, the shortest of any planet.',
-  'Mercury is the smallest planet — not much bigger than our Moon.',
-  'Its cratered face looks like the Moon’s: scars from billions of years of impacts.'],
- ['The Sun holds 99.8% of all the mass in the solar system.',
-  'More than a million Earths could fit inside it.',
-  'Light made in its 15-million-degree core can take 100,000 years to reach the surface — then just 8 minutes to reach Earth.',
-  'It is a middle-aged star: about 4.6 billion years old, with roughly 5 billion still to go.'],
- ['Jupiter outweighs all the other planets put together — more than twice over.',
-  'Earth is the largest of the four rocky planets, yet 11 Earths would fit across Jupiter’s face.',
-  'Uranus and Neptune are near twins: Uranus is slightly wider, Neptune slightly heavier.'],
- ['All the planets travel in nearly the same flat plane — the solar system formed from one spinning disk of dust and gas.',
-  'The closer a planet is to the Sun, the faster it must race: Mercury moves at 47 km every second, Neptune at just 5.',
-  'Seen from above the Sun’s north pole, every planet orbits in the same direction — counterclockwise.'],
- ['Voyager 1, launched in 1977, is the farthest human-made object — over 24 billion km away and still calling home.',
-  'From out there, Earth is a single pale blue dot: everyone who ever lived, on one small point of light.',
-  'The journey you just took spans about 4.5 billion km — light crosses it in just over 4 hours.']];
-
 const btnPlay=document.getElementById('btnPlay');
 const btnMusic=document.getElementById('btnMusic');
 const btnSpeed=document.getElementById('btnSpeed');
+/* ---------- field notes (did you know?) ----------
+   Hold, don't freeze: opening parks the itinerary clock (camera,
+   captions, auto-advance) but never touches `playing`, so the world
+   keeps living while the visitor reads. */
 const btnFacts=document.getElementById('btnFacts');
-const factsWrap=document.getElementById('factsWrap');
-const factsTitle=document.getElementById('factsTitle');
-const factsList=document.getElementById('factsList');
-let factsWasPlaying=false;
-function factsOpen(){
-  if(cur<0||TR||trans||!FACTS[cur])return;
-  factsTitle.textContent=STOP_NAMES[cur];
-  factsList.innerHTML='';
-  for(const f of FACTS[cur]){const li=document.createElement('li');li.textContent=f;factsList.appendChild(li);}
-  factsWasPlaying=playing;
-  if(playing)setPlaying(false);           /* hold the tour while reading */
-  factsWrap.classList.add('on');btnFacts.classList.add('active');
+const factsEl=document.getElementById('facts');
+const factsStopEl=document.getElementById('factsStop');
+const factBodyEl=document.getElementById('factBody');
+const factCountEl=document.getElementById('factCount');
+const factPrevBt=document.getElementById('factPrev');
+const factNextBt=document.getElementById('factNext');
+function showFact(i){
+  const F=stops[cur].facts;if(!F)return;
+  factIdx=Math.max(0,Math.min(F.length-1,i));
+  factBodyEl.style.opacity=0;
+  setTimeout(function(){
+    factBodyEl.textContent=F[factIdx];
+    factCountEl.textContent=(factIdx+1)+' / '+F.length;
+    factBodyEl.style.opacity=1;
+  },180);
+  factPrevBt.disabled=(factIdx===0);
+  factNextBt.disabled=(factIdx===F.length-1);
 }
-function factsClose(resume){
-  if(!factsWrap.classList.contains('on'))return;
-  factsWrap.classList.remove('on');btnFacts.classList.remove('active');
-  if(resume!==false&&factsWasPlaying)setPlaying(true);
-  factsWasPlaying=false;
+function openFacts(){
+  if(cur<0||TR||trans||!stops[cur].facts||factsOpen)return;
+  factsOpen=true;factsSeen=true;factIdx=0;
+  factsStopEl.textContent=STOP_NAMES[cur];
+  factBodyEl.textContent=stops[cur].facts[0];
+  factCountEl.textContent='1 / '+stops[cur].facts.length;
+  factPrevBt.disabled=true;
+  factNextBt.disabled=(stops[cur].facts.length===1);
+  factsEl.classList.add('show');
+  btnFacts.classList.add('active');btnFacts.classList.remove('nudge');
+  btnFacts.setAttribute('aria-expanded','true');
+  document.body.classList.add('facts-open');
+  hideTip();
+  factsEl.focus({preventScroll:true});
 }
-btnFacts.onclick=function(){factsWrap.classList.contains('on')?factsClose():factsOpen();};
-document.getElementById('factsClose').onclick=function(){factsClose();};
+function closeFacts(restoreFocus){
+  if(!factsOpen)return;
+  factsOpen=false;
+  factsEl.classList.remove('show');
+  btnFacts.classList.remove('active');
+  btnFacts.setAttribute('aria-expanded','false');
+  document.body.classList.remove('facts-open');
+  /* grace: if the stop already timed out while reading, give a beat
+     before the tour departs */
+  const st=stops[cur];
+  if(st&&isFinite(st.dur)&&stopClock>st.dur)stopClock=st.dur-1.5;
+  if(restoreFocus)btnFacts.focus({preventScroll:true});
+}
+function syncFactsBtn(st){
+  btnFacts.classList.toggle('off',!(st&&st.facts));
+}
+btnFacts.onclick=function(){factsOpen?closeFacts(true):openFacts();};
+document.getElementById('factsClose').onclick=function(){closeFacts(true);};
+factPrevBt.onclick=function(){showFact(factIdx-1);};
+factNextBt.onclick=function(){showFact(factIdx+1);};
 let SPD=1;
 function setSpeed(v){SPD=v;btnSpeed.textContent=v+'×';btnSpeed.classList.toggle('active',v>1);}
 btnSpeed.onclick=function(){setSpeed(SPD===1?2:SPD===2?4:1);};
@@ -2147,22 +2279,27 @@ btnPlay.onclick=function(){setPlaying(!playing);};
 btnMusic.onclick=function(){audio.setOn(!audio.on);btnMusic.classList.toggle('active',audio.on);};
 addEventListener('keydown',function(e){
   if(!splash.classList.contains('off'))return;
+  if(factsOpen){
+    /* while reading, arrows browse facts instead of traveling */
+    if(e.key==='ArrowRight'){e.preventDefault();showFact(factIdx+1);return;}
+    if(e.key==='ArrowLeft'){e.preventDefault();showFact(factIdx-1);return;}
+    if(e.key==='Escape'||e.key==='d'||e.key==='D'){closeFacts(true);return;}
+  }
   if(e.key==='ArrowRight')gotoStop(cur+1);
   else if(e.key==='ArrowLeft')gotoStop(cur-1);
   else if(e.key===' '){e.preventDefault();setPlaying(!playing);}
   else if(e.key==='m'||e.key==='M')btnMusic.click();
   else if(e.key==='f'||e.key==='F')btnSpeed.click();
-  else if(e.key==='i'||e.key==='I')btnFacts.click();
-  else if(e.key==='Escape')factsClose();
+  else if(e.key==='d'||e.key==='D')openFacts();
 });
 
 /* ================================================================
    7 · BOOT
 ================================================================ */
 const loadmsg=document.getElementById('loadmsg');
-if(matchMedia('(pointer: coarse)').matches){
-  document.getElementById('hintkeys').textContent='swipe to travel · tap a world for its name · ? for facts';
-  document.querySelector('#splash .keys').textContent='Sit back — the tour plays itself. Swipe or use the dots to travel freely.';
+if(COARSE){
+  document.getElementById('hintkeys').textContent='swipe to travel · tap a world for its name · ✦ facts';
+  document.querySelector('#splash .keys').textContent='Sit back — the tour plays itself. Swipe to travel freely. Tap ✦ for field notes.';
 }
 let started=false;
 let prepP=null;
@@ -2232,6 +2369,8 @@ document.getElementById('begin').onclick=async function(){
   splash.classList.add('off');
   setPlaying(!RM);                            /* reduced-motion visitors start paused */
   if(wantMusic){audio.setOn(true);btnMusic.classList.add('active');}
+  reWake();
+  if(COARSE)setTimeout(hintFade,15000);       /* hint earns its exit */
   activate(0);
   requestAnimationFrame(tick);
   if(RM)setTimeout(function(){showCap({t:'Motion is reduced — press \u25B6 to tour at your own pace',k:'note'});},700);
