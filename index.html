@@ -1466,7 +1466,6 @@ function transitTo(j){
   TR={to:j,t:0,dur:(j===5?7.4:(j===7?9.2:6.4)),
     yawA:yA,pitA:pA,tgt:entryL,
     path:tpath};
-  audio.chime(j);
   audio.whoosh(TR.dur);
   audio.setStop(j,TR.dur*.38);   /* harmony glides to the new key mid-flight */
   capEl.classList.remove('show');capIdx=-1;hideTip();
@@ -1488,7 +1487,6 @@ function gotoStop(i,instant){
   trans=true;
   faderNote.textContent='';
   fader.classList.add('on');
-  audio.chime(i);
   setTimeout(function(){
     activate(i);
     setTimeout(function(){fader.classList.remove('on');trans=false;},380);
@@ -1853,8 +1851,6 @@ const KEYS=[
   [[146.83,220,293.66,369.99],620],    /* Planet Sizes — D, reflective   */
   [[164.81,246.94,329.63,415.3],560],  /* Orbit Map — E, dominant        */
   [[110,164.81,220,277.18],480]];      /* Farewell — A major, resolve    */
-/* departure bell: one pentatonic step per destination, rising sunward */
-const BELL=[440,493.88,554.37,659.25,739.99,830.61,880,987.77,1108.73,1318.51,1479.98,987.77,880,659.25];
 const audio={ctx:null,on:false,master:null,verb:null,lp:null,voices:null,wgain:null,wbp:null,_zz:0,
   _pan:function(v){
     if(!this.ctx.createStereoPanner)return null;
@@ -1864,8 +1860,8 @@ const audio={ctx:null,on:false,master:null,verb:null,lp:null,voices:null,wgain:n
     if(this.ctx)return;
     const AC=window.AudioContext||window.webkitAudioContext;if(!AC)return;
     this.ctx=new AC();
-    /* master → gentle compressor → out; every voice (chimes included)
-       rides the master so the mute fade silences tails too */
+    /* master → gentle compressor → out; every voice (arrival tones
+       included) rides the master so the mute fade silences tails too */
     const comp=this.ctx.createDynamicsCompressor();
     comp.threshold.value=-26;comp.knee.value=18;comp.ratio.value=6;
     comp.attack.value=.01;comp.release.value=.4;
@@ -1962,25 +1958,6 @@ const audio={ctx:null,on:false,master:null,verb:null,lp:null,voices:null,wgain:n
     this.master.gain.setTargetAtTime(v?.055:0,t,1.2);
     if(!v){const me=this;this._zz=setTimeout(function(){
       if(!me.on&&me.ctx.state==='running')me.ctx.suspend();},6500);}
-  },
-  chime:function(i){
-    if(!this.ctx||!this.on)return;
-    const t=this.ctx.currentTime;
-    const f=BELL[Math.max(0,Math.min(BELL.length-1,i==null?5:i))];
-    /* fundamental + fifth + a faint inharmonic partial for bell colour */
-    const N=[[f,.5,-.3],[f*1.5,.26,.35],[f*2.76,.06,0]];
-    for(let j=0;j<N.length;j++){
-      const o=this.ctx.createOscillator();o.type='sine';o.frequency.value=N[j][0];
-      const g=this.ctx.createGain();
-      g.gain.setValueAtTime(0,t);
-      g.gain.linearRampToValueAtTime(N[j][1],t+.05+j*.03);
-      g.gain.exponentialRampToValueAtTime(.0001,t+1.8);
-      o.connect(g);
-      const pn=this._pan(N[j][2]);
-      if(pn){g.connect(pn);pn.connect(this.master);}else g.connect(this.master);
-      const s=this.ctx.createGain();s.gain.value=.8;g.connect(s);s.connect(this.verb);
-      o.start(t);o.stop(t+2);
-    }
   },
   arrive:function(i){
     if(!this.ctx||!this.on||!KEYS[i])return;
