@@ -1,6 +1,6 @@
 # Journey Through the Solar System
 
-A cinematic WebGL tour from the cold edge of the solar system down to the Sun — fourteen stops, a generative ambient score, and nothing to install. The whole experience is a single self-contained HTML file.
+A cinematic WebGL tour from the cold edge of the solar system down to the Sun — fourteen stops, a generative ambient score, and nothing to install. A small static site with no build step and no third-party dependencies.
 
 **[▶ Take the journey](https://yoavbz.github.io/solar-system-journey/)**
 
