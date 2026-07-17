@@ -8,6 +8,7 @@
 <meta name="apple-mobile-web-app-title" content="Solar System">
 <meta name="theme-color" content="#04060a">
 <title>Journey Through the Solar System — Neptune to the Sun</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='9' fill='%23e7dbb7'/%3E%3Cellipse cx='16' cy='16' rx='15' ry='4.6' fill='none' stroke='%23b5a276' stroke-width='2' transform='rotate(-18 16 16)'/%3E%3C/svg%3E">
 <link rel="preload" href="assets/fonts/fraunces-latin-opsz-normal.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="assets/fonts/outfit-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
 <style>
@@ -507,10 +508,11 @@ function sunGlowTexture(){
   x.fillStyle=lv;x.fillRect(126,0,4,256);
   return texFrom(c);
 }
-/* streaked corona sprite */
+/* streaked corona sprite — painted in 512 coords, rendered at 1024 */
 function coronaTexture(){
-  const c=document.createElement('canvas');c.width=c.height=512;
+  const c=document.createElement('canvas');c.width=c.height=1024;
   const x=c.getContext('2d');
+  x.scale(2,2);
   let g=x.createRadialGradient(256,256,56,256,256,256);
   g.addColorStop(0,'rgba(255,205,145,.16)');
   g.addColorStop(.35,'rgba(255,185,120,.08)');
@@ -527,7 +529,7 @@ function coronaTexture(){
     x.quadraticCurveTo(sgn*160,12,sgn*58,46);x.closePath();x.fill();
   }
   /* many fine tapering streamers, warm and soft */
-  x.shadowColor='rgba(255,190,120,.4)';x.shadowBlur=4;
+  x.shadowColor='rgba(255,190,120,.4)';x.shadowBlur=8;
   for(let k=0;k<26;k++){
     const a=h3(k,1,20,131)*TAU;
     const eq=Math.abs(Math.cos(a));
@@ -559,7 +561,7 @@ function coronaTexture(){
 const TEX={};                    /* registry — comparison scenes reuse the same paint */
 const builtSteps={};
 /* the galactic band: one inside-out sphere, infinitely far. The texture
-   was painted by paintBand() and baked to a 26 KB asset so boot stays
+   was painted by paintBand(4096) and baked to a webp asset so boot stays
    instant; the painter remains as the offline fallback. */
 function buildBand(){
   function mk(t){
@@ -573,8 +575,8 @@ function buildBand(){
     mk(t||texFrom(paintBand()));
   });
 }
-function paintBand(){
-  const W=1024,H=W/2;
+function paintBand(W){
+  W=W||1024;const H=W/2;
   const c=document.createElement('canvas');c.width=W;c.height=H;
   const x=c.getContext('2d');
   const img=x.createImageData(W,H),d=img.data;
@@ -603,12 +605,16 @@ function paintBand(){
     }
   }
   x.putImageData(img,0,0);
-  /* unresolvable grain behind the geometric stars */
+  /* unresolvable grain behind the geometric stars — faded toward the
+     equirect poles, where single texels stretch into streaks on the sphere */
   x.globalCompositeOperation='lighter';
-  const NS=3000;
+  const NS=Math.round(3000*(W/1024)*(W/1024));
   for(let i=0;i<NS;i++){
-    x.fillStyle='rgba(210,220,235,'+(.15+.35*h3(i,5,77,13)).toFixed(2)+')';
-    x.fillRect(Math.floor(h3(i,1,77,13)*W),Math.floor(h3(i,2,77,13)*H),1,1);
+    const yy=Math.floor(h3(i,2,77,13)*H);
+    const al=(.15+.35*h3(i,5,77,13))*Math.pow(Math.sin(Math.PI*(yy+.5)/H),1.5);
+    if(al<.04)continue;
+    x.fillStyle='rgba(210,220,235,'+al.toFixed(2)+')';
+    x.fillRect(Math.floor(h3(i,1,77,13)*W),yy,1,1);
   }
   return c;
 }
@@ -845,13 +851,16 @@ function buildTextures(step){
           d[k]=203*br;d[k+1]=182*br;d[k+2]=146*br;d[k+3]=Math.round(clamp01(a)*255);}}
       x.putImageData(img,0,0);return c;})());
     TEX.ringUra=texFrom((function(){
-      const w=512,c=document.createElement('canvas');c.width=w;c.height=4;
+      const w=1024,c=document.createElement('canvas');c.width=w;c.height=4;
       const x=c.getContext('2d');const img=x.createImageData(w,4);const d=img.data;
-      const bands=[[.3,.02,.4],[.52,.015,.3],[.72,.02,.35],[.94,.03,.5]];
+      const bands=[[.3,.025,.34],[.52,.02,.26],[.72,.025,.3],[.94,.035,.5]];
       for(let i=0;i<w;i++){const t=i/w;let a=0;
-        for(const b of bands){if(Math.abs(t-b[0])<b[1])a=Math.max(a,b[2]);}
+        for(const b of bands){
+          const q=Math.abs(t-b[0])/b[1];
+          if(q<1)a=Math.max(a,b[2]*(1-q*q));   /* soft-edged band */
+        }
         for(let j=0;j<4;j++){const k=(j*w+i)*4;
-          d[k]=96;d[k+1]=108;d[k+2]=116;d[k+3]=Math.round(a*255);}}
+          d[k]=142;d[k+1]=158;d[k+2]=168;d[k+3]=Math.round(a*255);}}
       x.putImageData(img,0,0);return c;})());
     break;
   }
@@ -932,14 +941,15 @@ function starPositions(N,seed){
   const halo=new THREE.Points(hg,mat(4,.12,{color:0xffffff}));
   halo.userData={baseOp:.12,baseSize:4,fadeK:.62,tw:null};
   grp.add(halo);
-  /* far galaxies: faint island universes among the stars — kept away
-     from the forward flight axis so the void stays a void */
+  /* far galaxies: faint island universes among the stars. Most sit away
+     from the forward flight axis so the void stays a void; two drift
+     20–25° off it — company in the corner of the eye at the stops */
   const galTex=galaxyTexture();
   const GAL=[
     {th:.8,ph:1.15,s:46,o:.5,rot:.6,sq:.42},
-    {th:2.6,ph:.7,s:26,o:.34,rot:2.1,sq:.36},
+    {th:4.35,ph:1.75,s:26,o:.34,rot:2.1,sq:.36},
     {th:3.9,ph:2.3,s:32,o:.38,rot:4,sq:.5},
-    {th:5.6,ph:1.05,s:20,o:.3,rot:1.2,sq:.34},
+    {th:4.95,ph:1.32,s:20,o:.3,rot:1.2,sq:.34},
     {th:3.4,ph:2.35,s:24,o:.3,rot:5.1,sq:.46}];
   for(const gg of GAL){
     const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:galTex,
@@ -995,7 +1005,7 @@ function rim(r,color,opacity){
       side:THREE.BackSide,blending:THREE.AdditiveBlending,depthWrite:false}));
   m.renderOrder=2;return m;
 }
-function ringMesh(inner,outer,tex){
+function ringMesh(inner,outer,tex,unlit){
   const g=new THREE.RingGeometry(inner,outer,160,1);
   const pos=g.attributes.position,uv=g.attributes.uv;
   for(let i=0;i<pos.count;i++){
@@ -1003,8 +1013,13 @@ function ringMesh(inner,outer,tex){
     uv.setXY(i,(r-inner)/(outer-inner),.5);
   }
   uv.needsUpdate=true;
-  const m=new THREE.Mesh(g,new THREE.MeshPhongMaterial({map:tex,transparent:true,
-    alphaTest:.05,side:THREE.DoubleSide,shininess:4}));
+  /* unlit: near-edge-on rings (Uranus) get no diffuse from an in-plane
+     sun, so they self-illuminate faintly instead of vanishing */
+  const m=new THREE.Mesh(g,unlit
+    ?new THREE.MeshBasicMaterial({map:tex,transparent:true,alphaTest:.02,
+      side:THREE.DoubleSide,depthWrite:false})
+    :new THREE.MeshPhongMaterial({map:tex,transparent:true,
+      alphaTest:.05,side:THREE.DoubleSide,shininess:4}));
   m.rotation.x=-Math.PI/2;return m;
 }
 /* rocks share a small pool of displaced unit geometries (scaled per
@@ -1174,16 +1189,20 @@ function makeSunMaterial(){
 }
 /* --- wispy prominence loops painted as additive billboards --- */
 function promTexture(seed){
-  const c=document.createElement('canvas');c.width=256;c.height=256;
+  /* painted in 256 coords, rendered at 512 */
+  const c=document.createElement('canvas');c.width=512;c.height=512;
   const x=c.getContext('2d');
+  x.scale(2,2);
   x.globalCompositeOperation='lighter';
   function qp(t,x0,x1,cx,cy){const mt=1-t;
     return[mt*mt*x0+2*mt*t*cx+t*t*x1, mt*mt*242+2*mt*t*cy+t*t*242];}
-  /* soft plasma tube: stacked radial glows along the arc — no blur needed */
+  /* soft plasma tube: densely stacked radial glows along the arc —
+     enough overlap that the thinnest core reads as a smooth filament */
   function tube(x0,x1,cx,cy,rad,col,a){
-    for(let i=0;i<=22;i++){const pp=qp(i/22,x0,x1,cx,cy);
+    a=a*.38;                       /* keep total brightness of the 22-step look */
+    for(let i=0;i<=60;i++){const pp=qp(i/60,x0,x1,cx,cy);
       const g=x.createRadialGradient(pp[0],pp[1],0,pp[0],pp[1],rad);
-      g.addColorStop(0,col+a+')');g.addColorStop(1,col+'0)');
+      g.addColorStop(0,col+(a).toFixed(3)+')');g.addColorStop(1,col+'0)');
       x.fillStyle=g;x.beginPath();x.arc(pp[0],pp[1],rad,0,Math.PI*2);x.fill();}
   }
   const spread=36+6*h3(1,1,seed,7), x0=128-spread, x1=128+spread;
@@ -1321,9 +1340,11 @@ const BUILDERS=[
   build(g,st){
     sunLight(g,[-8,2,6]);
     sunFill(g);
-    const grp=new THREE.Group();grp.rotation.z=rad(98);g.add(grp);
+    const grp=new THREE.Group();grp.rotation.z=rad(98);
+    grp.rotation.y=.45;                 /* open the ring plane toward us */
+    g.add(grp);
     grp.add(name(spin(sphere(1.9,TEX.uranus),.02),'Uranus',st));
-    grp.add(ringMesh(2.6,3.4,TEX.ringUra));
+    grp.add(ringMesh(2.6,3.4,TEX.ringUra,true));
     g.add(rim(1.9,0x6fd8cf,.1));
     const MO=['Miranda','Ariel','Umbriel','Titania','Oberon'];
     for(let i=0;i<5;i++){
@@ -2341,7 +2362,7 @@ let hdCount=0;
 function creditOn(){
   if(hdCount!==1)return;
   const c=document.getElementById('credit');
-  c.textContent='Imagery: NASA-derived planet maps (CC / free use)';
+  c.textContent='Planet maps: Solar System Scope (CC BY 4.0) · NASA-derived';
   c.classList.add('on');
 }
 async function upgradeHD(){
@@ -2387,13 +2408,14 @@ const EMB={
   sun:'assets/textures/sun.webp',
   mars:'assets/textures/mars.webp',
   marsBump:'assets/textures/marsBump.webp',
-  moon:'assets/textures/moon.jpg',
-  moonBump:'assets/textures/moonBump.jpg',
-  mercury:'assets/textures/mercury.jpg',
-  mercuryBump:'assets/textures/mercuryBump.jpg',
+  moon:'assets/textures/moon.webp',
+  moonBump:'assets/textures/moonBump.webp',
+  mercury:'assets/textures/mercury.webp',
+  mercuryBump:'assets/textures/mercuryBump.webp',
   saturn:'assets/textures/saturn.webp',
   ringSat:'assets/textures/ringSat.webp',
   ringPat:'assets/textures/ringPat.webp',
+  uranus:'assets/textures/uranus.webp',
   neptune:'assets/textures/neptune.webp'
 };
 async function applyEmbedded(){
@@ -2420,9 +2442,9 @@ async function applyEmbedded(){
     (async function(){
       const e=await swap('earth',EMB.earth);
       if(e)for(const em of EARTH_SHADERS)em.uniforms.dayMap.value=e;
-      const n=await loadTex(EMB.night,true,1024);
+      const n=await loadTex(EMB.night,true,2048);
       if(n)for(const em of EARTH_SHADERS)em.uniforms.nightMap.value=n;
-      const cl=await loadTex(EMB.clouds,true,1024);
+      const cl=await loadTex(EMB.clouds,true,2048);
       if(cl)for(const m of mats('clouds')){m.map=cl;m.alphaMap=cl;m.opacity=.95;m.needsUpdate=true;}
     })(),
     swap('venus',EMB.venus),
@@ -2436,8 +2458,9 @@ async function applyEmbedded(){
     })(),
     (async function(){await swap('mars',EMB.mars);await bump('mars',EMB.marsBump,.05);})(),
     (async function(){await swap('moon',EMB.moon);await bump('moon',EMB.moonBump,.04);})(),
-    (async function(){await swap('mercury',EMB.mercury);await bump('mercury',EMB.mercuryBump,.045);})(),
+    (async function(){await swap('mercury',EMB.mercury);await bump('mercury',EMB.mercuryBump,.015);})(),
     swap('saturn',EMB.saturn),
+    swap('uranus',EMB.uranus),
     swap('neptune',EMB.neptune),
     (async function(){
       const rc=await loadTex(EMB.ringSat,true);
@@ -2768,7 +2791,7 @@ async function prepare(){
   indexMaterials();applyBumps();faceGRS(.30);
   applyEmbedded().then(function(){
     const c=document.getElementById('credit');
-    c.textContent='Imagery: NASA-derived planet maps';
+    c.textContent='Planet maps: Solar System Scope (CC BY 4.0) · NASA-derived';
     c.classList.add('on');
     upgradeHD();
   });

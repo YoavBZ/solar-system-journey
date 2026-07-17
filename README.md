@@ -14,7 +14,7 @@ Each stop plays out as a slow camera move with film-style captions. Let it run a
 
 ## Features
 
-- **Fully self-hosted.** No CDNs, no third-party requests: three.js, the fonts, and the NASA-derived planet maps all live in this repo. The page is interactive in about a second; textures stream in behind the procedurally painted planets.
+- **Fully self-hosted.** No CDNs, no third-party requests: three.js, the fonts, and the planet maps all live in this repo. The page is interactive in about a second; high-resolution textures stream in behind the procedurally painted planets.
 - **Generative score.** No audio files: a four-voice Web Audio drone whose harmony warms and brightens as you fall sunward, a filtered-noise whoosh during flights between worlds, and a soft arrival tone at each stop. Toggle with the music button or <kbd>m</kbd>.
 - **Living scenes.** Storm bands on Jupiter, Saturn's rings with orbiting moons, a dense asteroid belt, city lights on Earth's night side, solar prominences, a passing comet — plus a false-color science view of the Sun.
 - **A deep sky.** Thousands of layered stars, the Milky Way with its dust lanes, and a handful of distant galaxies.
@@ -44,8 +44,8 @@ python3 -m http.server
 # then visit http://localhost:8000
 ```
 
-(Opening `index.html` straight from the file system mostly works too, but browsers block texture loading from `file://`, so the planets keep their painted procedural looks instead of the NASA maps.)
+(Opening `index.html` straight from the file system mostly works too, but browsers block texture loading from `file://`, so the planets keep their painted procedural looks instead of the photographic maps.)
 
 ## Credits
 
-Planet imagery derived from NASA maps. Rendered with [three.js](https://threejs.org/) r128.
+Planet and moon maps by [Solar System Scope](https://www.solarsystemscope.com/textures/) ([CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)), based on NASA imagery. Rendered with [three.js](https://threejs.org/) r128.
