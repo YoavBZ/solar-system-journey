@@ -1144,7 +1144,8 @@ function makeSunMaterial(){
       'float h21(vec2 p){p=fract(p*vec2(123.34,456.21));p+=dot(p,p+45.32);return fract(p.x*p.y);}',
       'float vn(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.0-2.0*f);',
       ' return mix(mix(h21(i),h21(i+vec2(1,0)),f.x),mix(h21(i+vec2(0,1)),h21(i+vec2(1,1)),f.x),f.y);}',
-      'float fbm2(vec2 p){float a=.5,t=0.;for(int i=0;i<3;i++){t+=a*vn(p);p*=2.17;a*=.5;}return t;}',
+      'float fbm2(vec2 p){float a=.5,t=0.;mat2 R=mat2(.80,.60,-.60,.80);',
+      ' for(int i=0;i<5;i++){t+=a*vn(p);p=R*p*2.13;a*=.55;}return t;}',
       'void main(){',
       ' vec2 uv=vec2(vUv.x+uvOff,vUv.y);',
       ' float t=uTime;',
@@ -1153,8 +1154,14 @@ function makeSunMaterial(){
       ' vec2 uvA=uv+w*.02;',
       ' float base=dot(pow(texture2D(map,uvA).rgb,vec3(2.2)),vec3(.333));',
       ' float mid =dot(pow(texture2D(map,uvA*2.3+vec2(.31,.13)+w*.05).rgb,vec3(2.2)),vec3(.333));',
-      /* boiling granulation: fine cells that actually churn over time */
-      ' float gran=fbm2(uv*46.0+w*9.0+vec2(t*.16,-t*.11));',
+      /* boiling granulation: cells continuously dissolve into new cells
+         (two noise phases cross-faded) rather than the field sliding */
+      ' float ph=t*.28; float ip=floor(ph), fp=ph-ip;',
+      ' vec2 gp=uv*46.0+w*9.0+vec2(t*.03,-t*.02);',
+      ' float g1=fbm2(gp+vec2(ip*17.13,ip*9.71));',
+      ' float g2=fbm2(gp+vec2((ip+1.0)*17.13,(ip+1.0)*9.71));',
+      ' float gran=mix(g1,g2,fp*fp*(3.0-2.0*fp));',
+      ' gran=clamp((gran-.5)*1.35+.5,0.0,1.0);',
       ' gran=gran*gran*(3.0-2.0*gran);',
       ' float L=base*(.55+.75*mid)*(.72+.56*gran);',
       ' L=pow(L*2.1,1.25);',
@@ -1556,6 +1563,7 @@ const BUILDERS=[
     cl.renderOrder=1;g.add(cl);
     g.add(rim(1.5,0x6fa8e8,.1));
     const mo=name(spin(sphere(.41,TEX.moon),.012),'The Moon',st);
+    mo.rotation.y=-Math.PI/2;          /* the familiar near side — its maria — faces us */
     mo.position.set(12,.6,-4);g.add(mo);
   }})],
 
@@ -1641,23 +1649,25 @@ const BUILDERS=[
       const a=rad(18+i*112);
       const sc=.55+.1*i;
       const pl=new THREE.Mesh(new THREE.PlaneGeometry(2,2),
-        new THREE.MeshBasicMaterial({map:promTexture(11+i*7),color:0xffffff,
+        new THREE.MeshBasicMaterial({map:promTexture(11+i*7),color:0xffffff,opacity:.6,
           transparent:true,blending:THREE.AdditiveBlending,depthWrite:false}));
       pl.scale.set(sc,sc,1);
       pl.position.set(Math.cos(a)*(3.0+.84*sc),Math.sin(a)*(3.0+.84*sc),.15);
       pl.rotation.z=a-Math.PI/2;
       g.add(pl);s.proms.push(pl);
     }
-    s.update=function(dt,el){
+    s.update=function(dt){
+      /* one continuous clock (GT) whether approaching or arrived — the
+         surface never snaps phase when the stop becomes current */
       s.body.material.uniforms.uvOff.value+=.0035*dt;
-      s.body.material.uniforms.uTime.value=el;
+      s.body.material.uniforms.uTime.value=GT;
       for(let i=0;i<s.proms.length;i++){
         const pm=s.proms[i];
-        pm.material.opacity=.5+.2*Math.sin(el*.5+i*2.1);
-        const sc2=(.55+.1*i)*(1+.05*Math.sin(el*.8+i*1.7));
+        pm.material.opacity=.5+.2*Math.sin(GT*.5+i*2.1);
+        const sc2=(.55+.1*i)*(1+.05*Math.sin(GT*.8+i*1.7));
         pm.scale.set(sc2,sc2,1);
       }
-      s.glow.material.opacity=.9+.07*Math.sin(el*.45);
+      s.glow.material.opacity=.9+.07*Math.sin(GT*.45);
     };
   }
   });
