@@ -17,6 +17,8 @@ Each stop plays out as a slow camera move with film-style captions. Let it run a
 - **One file.** Planet textures (NASA-derived maps) are embedded as data URIs, so `index.html` carries everything except two CDN dependencies (three.js and fonts).
 - **Generative score.** No audio files: a four-voice Web Audio drone whose harmony warms and brightens as you fall sunward, a filtered-noise whoosh during flights between worlds, and a soft arrival tone at each stop. Toggle with the music button or <kbd>m</kbd>.
 - **Living scenes.** Storm bands on Jupiter, Saturn's rings with orbiting moons, a dense asteroid belt, city lights on Earth's night side, solar prominences — plus a false-color science view of the Sun.
+- **Field notes.** An opt-in "Did you know?" layer: three or four curated facts per stop, one at a time, in a quiet card that holds the tour while you read.
+- **Made for touch too.** Swipe to travel, tap a world for its name, safe-area-aware layout, and lighter rendering budgets on phones.
 - **Accessible by design.** Keyboard navigation throughout, hover any world for its name, and `prefers-reduced-motion` starts the tour paused so visitors move at their own pace.
 
 ## Controls
@@ -25,9 +27,12 @@ Each stop plays out as a slow camera move with film-style captions. Let it run a
 |---|---|
 | <kbd>→</kbd> / <kbd>←</kbd> | Travel to the next / previous stop |
 | <kbd>Space</kbd> | Pause or resume the tour |
+| <kbd>d</kbd> | Open the field notes (while open, <kbd>→</kbd>/<kbd>←</kbd> browse facts) |
+| <kbd>f</kbd> | Cycle travel speed (1× / 2× / 4×) |
 | <kbd>m</kbd> | Toggle music |
 | Dots (top center) | Jump to any stop |
-| Mouse hover | Name the world under the cursor |
+| Mouse hover / tap | Name the world under the cursor or finger |
+| Swipe left / right | Travel between stops (touch screens) |
 
 ## Running locally
 
