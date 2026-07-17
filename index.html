@@ -1420,9 +1420,11 @@ const BUILDERS=[
   build(g,st){
     sunLight(g,[0,40,18],.9);
     g.add(new THREE.PointLight(0xfff2dc,.6,0,0));
-    g.add(name(new THREE.Mesh(new THREE.SphereGeometry(.9,32,20),
+    /* the Sun stays the biggest body on the map — still far from true
+       scale, but never smaller than the giants */
+    g.add(name(new THREE.Mesh(new THREE.SphereGeometry(1.9,48,28),
       new THREE.MeshBasicMaterial({map:TEX.sun})),'The Sun',st));
-    g.add(sprite(glowTexture('rgba(255,205,130,.8)','rgba(255,160,70,.3)'),4.4,0xffb066));
+    g.add(sprite(glowTexture('rgba(255,205,130,.8)','rgba(255,160,70,.3)'),6.4,0xffb066));
     const P=[['Mercury',2.7,.3,15,TEX.mercury],['Venus',3.7,.44,140,TEX.venus],
              ['Earth',4.9,.47,265,TEX.earth],['Mars',6.1,.36,80,TEX.mars],
              ['Jupiter',9.4,1.35,205,TEX.jupiter],['Saturn',12.8,1.15,325,TEX.saturn],
@@ -1635,10 +1637,64 @@ function transitTo(j){
     path:tpath};
   audio.whoosh(TR.dur/SPD);
   audio.setStop(j,TR.dur*.38);   /* harmony glides to the new key mid-flight */
+  if((cur===2&&j===3)||(cur===3&&j===2))cometArm();
   closeFacts(false);
   capEl.classList.remove('show');capIdx=-1;hideTip();
 }
+/* ---- a passing comet, seen on the flight between Uranus and Saturn ---- */
+const COMET={g:null,on:false,p0:null,p1:null};
+function buildComet(){
+  const g=new THREE.Group();
+  g.add(new THREE.Mesh(new THREE.SphereGeometry(.18,12,10),
+    new THREE.MeshBasicMaterial({color:0xdcecff})));
+  g.add(sprite(glowTexture('rgba(215,235,255,.95)','rgba(150,190,255,.35)'),3.2,0xcfe4ff));
+  function tail(n,len,spread,col,op,size){
+    const a=new Float32Array(n*3);
+    for(let i=0;i<n;i++){
+      const t=Math.pow(Math.random(),1.6);
+      a[i*3]=(Math.random()-.5)*spread*(.25+t);
+      a[i*3+1]=(Math.random()-.5)*spread*(.25+t);
+      a[i*3+2]=t*len;
+    }
+    const ge=new THREE.BufferGeometry();
+    ge.setAttribute('position',new THREE.BufferAttribute(a,3));
+    return new THREE.Points(ge,new THREE.PointsMaterial({color:col,size:size,
+      map:glowTexture('rgba(255,255,255,.9)','rgba(255,255,255,0)'),
+      transparent:true,opacity:op,sizeAttenuation:true,
+      blending:THREE.AdditiveBlending,depthWrite:false}));
+  }
+  g.add(tail(110,13,1.4,0x9fc4ff,.8,.48));   /* ion tail — blue, long, narrow */
+  g.add(tail(140,7.5,2.2,0xf2e6d8,.6,.4));   /* dust tail — warm, short, wide */
+  g.visible=false;
+  scene.add(g);
+  COMET.g=g;
+}
+function cometArm(){
+  /* cross the camera's line of flight ~30 units ahead of mid-transit */
+  const c0=TR.path(.5).pos,c1=TR.path(.95).pos;
+  const dx=c1[0]-c0[0],dy=c1[1]-c0[1],dz=c1[2]-c0[2];
+  const dl=Math.hypot(dx,dy,dz)||1;
+  const d=[dx/dl,dy/dl,dz/dl];
+  const r=[-d[2],0,d[0]];const rl=Math.hypot(r[0],r[2])||1;r[0]/=rl;r[2]/=rl;
+  /* biased to one side so it sweeps past the camera, never through it */
+  const bx=c0[0]+d[0]*30+r[0]*9,by=c0[1]+d[1]*30,bz=c0[2]+d[2]*30+r[2]*9;
+  COMET.p0=[bx-r[0]*20,by+9,bz-r[2]*20];
+  COMET.p1=[bx+r[0]*24,by-7,bz+r[2]*24];
+  COMET.on=true;COMET.g.visible=true;
+}
+function cometUpdate(q){
+  const px=COMET.p0[0]+(COMET.p1[0]-COMET.p0[0])*q,
+        py=COMET.p0[1]+(COMET.p1[1]-COMET.p0[1])*q,
+        pz=COMET.p0[2]+(COMET.p1[2]-COMET.p0[2])*q;
+  COMET.g.position.set(px,py,pz);
+  /* both tails stream away from the Sun */
+  const sA=stops[10].anchor;
+  _v.set(px-sA[0],py-(sA[1]+2),pz-sA[2]).normalize();
+  COMET.g.lookAt(px+_v.x,py+_v.y,pz+_v.z);
+}
+function cometHide(){if(COMET.on){COMET.on=false;COMET.g.visible=false;}}
 function finishTransit(){
+  cometHide();
   const j=TR.to;TR=null;
   cur=j;const st=stops[j];
   syncFactsBtn(st);
@@ -1757,6 +1813,7 @@ function tick(now){
     const tt=Math.min(TR.t/TR.dur,1);
     const ss=tt*tt*tt*(tt*(tt*6-15)+10);
     const eu=ss;   /* zero start/end velocity: orbits carry the glide across handoffs */
+    if(COMET.on)cometUpdate(eu);
     const c=TR.path(eu);
     camera.position.set(c.pos[0],c.pos[1],c.pos[2]);
     const ai=eu*40, i0=Math.min(39,Math.floor(ai)), fr2=ai-i0;
@@ -2356,6 +2413,7 @@ async function prepare(){
   gsun.userData.core=gcore;
   scene.add(gsun);scene.add(gcore);
   window.__globalSun=gsun;
+  buildComet();
   window.__J={scene:scene,stops:stops,camera:camera,goto:gotoStop,audio:audio,st:function(){return{cur:cur,TR:!!TR,stopClock:stopClock};}};
   for(let i=0;i<stops.length;i++){
     const d=document.createElement('button');
