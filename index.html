@@ -384,7 +384,7 @@ function fbm(x,y,z,s,o){o=o||4;let a=.5,f=1,t=0;
 /* ================================================================
    1 · TEXTURE PAINTERS (every world is painted live)
 ================================================================ */
-function texFrom(c,srgb){const t=new THREE.CanvasTexture(c);if(srgb!==false)t.encoding=THREE.sRGBEncoding;t.anisotropy=Math.min(renderer.capabilities.getMaxAnisotropy(),COARSE?4:16);return t;}
+function texFrom(c,srgb){const t=new THREE.CanvasTexture(c);if(srgb!==false)t.encoding=THREE.sRGBEncoding;t.anisotropy=Math.min(renderer.capabilities.getMaxAnisotropy(),16);return t;}
 function paint(w,h,fn,post){
   const c=document.createElement('canvas');c.width=w;c.height=h;
   const x=c.getContext('2d');const img=x.createImageData(w,h);const d=img.data;
@@ -443,6 +443,51 @@ function glowTexture(inner,mid){
   const g=x.createRadialGradient(128,128,0,128,128,128);
   g.addColorStop(0,inner);g.addColorStop(.35,mid);g.addColorStop(1,'rgba(0,0,0,0)');
   x.fillStyle=g;x.fillRect(0,0,256,256);
+  return texFrom(c);
+}
+/* tight star point: sharp core, fast falloff — reads as a point, not a disc */
+function starTexture(){
+  const c=document.createElement('canvas');c.width=c.height=128;
+  const x=c.getContext('2d');
+  const g=x.createRadialGradient(64,64,0,64,64,64);
+  g.addColorStop(0,'rgba(255,255,255,1)');
+  g.addColorStop(.18,'rgba(255,255,255,.55)');
+  g.addColorStop(.45,'rgba(255,255,255,.08)');
+  g.addColorStop(1,'rgba(255,255,255,0)');
+  x.fillStyle=g;x.fillRect(0,0,128,128);
+  return texFrom(c);
+}
+/* a far galaxy: disc, two trailing arms, soft core. One shared texture;
+   each sprite gets its own rotation (position angle) and y-squash
+   (inclination). Arms are layered strokes — no ctx.filter dependency. */
+function galaxyTexture(){
+  const c=document.createElement('canvas');c.width=c.height=256;
+  const x=c.getContext('2d');
+  x.translate(128,128);
+  let g=x.createRadialGradient(0,0,0,0,0,110);
+  g.addColorStop(0,'rgba(255,244,224,.8)');
+  g.addColorStop(.18,'rgba(226,225,235,.4)');
+  g.addColorStop(.55,'rgba(180,190,215,.15)');
+  g.addColorStop(1,'rgba(160,175,205,0)');
+  x.fillStyle=g;x.beginPath();x.arc(0,0,110,0,TAU);x.fill();
+  x.globalCompositeOperation='lighter';
+  x.lineCap='round';
+  for(const pass of [[26,.045],[15,.08],[7,.13]]){
+    x.lineWidth=pass[0];
+    x.strokeStyle='rgba(205,215,235,'+pass[1]+')';
+    for(const s of [0,Math.PI]){
+      x.beginPath();
+      for(let t=0;t<2.4;t+=.15){
+        const r=18+t*34,a=s+t;
+        const px=Math.cos(a)*r,py=Math.sin(a)*r;
+        if(t===0)x.moveTo(px,py);else x.lineTo(px,py);
+      }
+      x.stroke();
+    }
+  }
+  g=x.createRadialGradient(0,0,0,0,0,30);
+  g.addColorStop(0,'rgba(255,250,235,.85)');g.addColorStop(1,'rgba(255,244,224,0)');
+  x.fillStyle=g;x.beginPath();x.arc(0,0,30,0,TAU);x.fill();
   return texFrom(c);
 }
 /* distant-sun glow with a quiet four-point diffraction cross */
@@ -513,9 +558,23 @@ function coronaTexture(){
 
 const TEX={};                    /* registry — comparison scenes reuse the same paint */
 const builtSteps={};
-/* the galactic band: one inside-out sphere, painted once, infinitely far */
+/* the galactic band: one inside-out sphere, infinitely far. The texture
+   was painted by paintBand() and baked to a 26 KB asset so boot stays
+   instant; the painter remains as the offline fallback. */
 function buildBand(){
-  const W=COARSE?512:1024,H=W/2;
+  function mk(t){
+    const mesh=new THREE.Mesh(new THREE.SphereGeometry(870,48,32),
+      new THREE.MeshBasicMaterial({map:t,side:THREE.BackSide,transparent:true,
+        opacity:.9,blending:THREE.AdditiveBlending,depthWrite:false}));
+    mesh.userData={baseOp:.9,fadeK:.25,tw:null};
+    window.__stars.add(mesh);
+  }
+  loadTex('assets/textures/milkyway.webp',true).then(function(t){
+    mk(t||texFrom(paintBand()));
+  });
+}
+function paintBand(){
+  const W=1024,H=W/2;
   const c=document.createElement('canvas');c.width=W;c.height=H;
   const x=c.getContext('2d');
   const img=x.createImageData(W,H),d=img.data;
@@ -546,16 +605,12 @@ function buildBand(){
   x.putImageData(img,0,0);
   /* unresolvable grain behind the geometric stars */
   x.globalCompositeOperation='lighter';
-  const NS=COARSE?1200:3000;
+  const NS=3000;
   for(let i=0;i<NS;i++){
     x.fillStyle='rgba(210,220,235,'+(.15+.35*h3(i,5,77,13)).toFixed(2)+')';
     x.fillRect(Math.floor(h3(i,1,77,13)*W),Math.floor(h3(i,2,77,13)*H),1,1);
   }
-  const mesh=new THREE.Mesh(new THREE.SphereGeometry(870,48,32),
-    new THREE.MeshBasicMaterial({map:texFrom(c),side:THREE.BackSide,transparent:true,
-      opacity:.9,blending:THREE.AdditiveBlending,depthWrite:false}));
-  mesh.userData={baseOp:.9,fadeK:.25,tw:null};
-  window.__stars.add(mesh);
+  return c;
 }
 function buildTextures(step){
   if(builtSteps[step])return; builtSteps[step]=1;
@@ -805,13 +860,14 @@ function buildTextures(step){
 /* ================================================================
    2 · SCENE SCAFFOLD
 ================================================================ */
-/* touch-primary device: gates hints, texture budgets, pixel ratio */
+/* touch-primary device: gates hint copy and the hint auto-fade only —
+   rendering quality is uniform everywhere (the ratchet is the guard) */
 const COARSE=matchMedia('(hover: none) and (pointer: coarse)').matches;
 let renderer,scene,camera;
 try{
   renderer=new THREE.WebGLRenderer({canvas:document.getElementById('sky'),antialias:true});
 }catch(e){ fatal('WebGL is not available in this browser.'); return; }
-renderer.setPixelRatio(Math.min(devicePixelRatio,COARSE?1.5:2));
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
 renderer.setSize(innerWidth,innerHeight);
 renderer.outputEncoding=THREE.sRGBEncoding;
 renderer.toneMapping=THREE.ACESFilmicToneMapping;
@@ -837,7 +893,7 @@ function starPositions(N,seed){
 }
 (function stars(){
   const grp=new THREE.Group();
-  const glow=glowTexture('rgba(255,255,255,1)','rgba(255,255,255,0)');
+  const glow=starTexture();
   function mat(size,op,extra){
     return new THREE.PointsMaterial(Object.assign({map:glow,blending:THREE.AdditiveBlending,
       size:size,sizeAttenuation:false,transparent:true,opacity:op,depthWrite:false},extra||{}));
@@ -849,10 +905,10 @@ function starPositions(N,seed){
     p.userData={baseOp:op,baseSize:size,fadeK:.62,tw:null};
     grp.add(p);
   }
-  tier(COARSE?1400:4200,0,1.5,.55,0xbfc8d4);      /* dust — the faint field */
-  tier(COARSE?500:1500,5,2.6,.8,0xdfe6ee);        /* mid — today's look     */
+  tier(4200,0,1.1,.55,0xbfc8d4);                  /* dust — the faint field */
+  tier(1500,5,1.9,.8,0xdfe6ee);                   /* mid                    */
   /* bright tier: tinted, split in three phase groups for a quiet twinkle */
-  const NB=COARSE?90:220;
+  const NB=220;
   const bp=starPositions(NB,20),bc=new Float32Array(NB*3);
   for(let i=0;i<NB;i++){
     const u=h3(i,3,20,11);
@@ -867,22 +923,41 @@ function starPositions(N,seed){
     const g=new THREE.BufferGeometry();
     g.setAttribute('position',new THREE.Float32BufferAttribute(pp,3));
     g.setAttribute('color',new THREE.Float32BufferAttribute(cc,3));
-    const p=new THREE.Points(g,mat(4.5,1,{vertexColors:true}));
-    p.userData={baseOp:1,baseSize:4.5,fadeK:.62,tw:{a:.08,o:[.9,1.3,1.7][k],p:k*2.1}};
+    const p=new THREE.Points(g,mat(3,1,{vertexColors:true}));
+    p.userData={baseOp:1,baseSize:3,fadeK:.62,tw:{a:.08,o:[.9,1.3,1.7][k],p:k*2.1}};
     grp.add(p);
   }
   const hg=new THREE.BufferGeometry();
   hg.setAttribute('position',new THREE.Float32BufferAttribute(bp,3));
-  const halo=new THREE.Points(hg,mat(9,.18,{color:0xffffff}));
-  halo.userData={baseOp:.18,baseSize:9,fadeK:.62,tw:null};
+  const halo=new THREE.Points(hg,mat(5.5,.14,{color:0xffffff}));
+  halo.userData={baseOp:.14,baseSize:5.5,fadeK:.62,tw:null};
   grp.add(halo);
+  /* far galaxies: faint island universes among the stars — kept away
+     from the forward flight axis so the void stays a void */
+  const galTex=galaxyTexture();
+  const GAL=[
+    {th:.8,ph:1.15,s:46,o:.5,rot:.6,sq:.42},
+    {th:2.6,ph:.7,s:26,o:.34,rot:2.1,sq:.36},
+    {th:3.9,ph:2.3,s:32,o:.38,rot:4,sq:.5},
+    {th:5.6,ph:1.05,s:20,o:.3,rot:1.2,sq:.34},
+    {th:3.4,ph:2.35,s:24,o:.3,rot:5.1,sq:.46}];
+  for(const gg of GAL){
+    const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:galTex,
+      transparent:true,opacity:gg.o,blending:THREE.AdditiveBlending,depthWrite:false,
+      rotation:gg.rot*1.7}));
+    sp.position.set(840*Math.sin(gg.ph)*Math.cos(gg.th),840*Math.cos(gg.ph),
+      840*Math.sin(gg.ph)*Math.sin(gg.th));
+    sp.scale.set(gg.s,gg.s*gg.sq,1);
+    sp.userData={baseOp:gg.o,fadeK:.35,tw:null};
+    grp.add(sp);
+  }
   scene.add(grp);window.__stars=grp;
 })();
 function sizeStars(){
   /* point sizes are drawing-buffer pixels: hold a constant screen fraction */
   if(!window.__stars)return;
   const s=new THREE.Vector2();renderer.getDrawingBufferSize(s);
-  const k=Math.max(.6,s.y/1080);
+  const k=Math.max(.75,s.y/1080);
   for(const p of window.__stars.children)
     if(p.userData&&p.userData.baseSize)p.material.size=p.userData.baseSize*k;
 }
@@ -931,9 +1006,12 @@ function ringMesh(inner,outer,tex){
     alphaTest:.05,side:THREE.DoubleSide,shininess:4}));
   m.rotation.x=-Math.PI/2;return m;
 }
-function rock(r,color,seed){
+/* rocks share a small pool of displaced unit geometries (scaled per
+   mesh): identical look, a fraction of the boot-time vertex work */
+const ROCKGEOS=[];
+function rockGeo(seed){
   /* smooth continuous noise over the sphere: lumpy potato, no facets */
-  const g=new THREE.IcosahedronGeometry(r,2);
+  const g=new THREE.IcosahedronGeometry(1,2);
   const p=g.attributes.position;
   const f=[],ph=[];
   for(let o=0;o<4;o++){
@@ -942,17 +1020,24 @@ function rock(r,color,seed){
   }
   const sy=.78+h3(1,seed,6,9)*.34, sz=.66+h3(2,seed,7,9)*.4;
   for(let i=0;i<p.count;i++){
-    const x=p.getX(i)/r,y=p.getY(i)/r,z=p.getZ(i)/r;
+    const x=p.getX(i),y=p.getY(i),z=p.getZ(i);
     let n=0,amp=.3;
     for(let o=0;o<4;o++){
       n+=Math.sin(x*f[o][0]+y*f[o][1]+z*f[o][2]+ph[o])*amp;
       amp*=.45;
     }
     const s=1+n*.55;
-    p.setXYZ(i,p.getX(i)*s,p.getY(i)*s*sy,p.getZ(i)*s*sz);
+    p.setXYZ(i,x*s,y*s*sy,z*s*sz);
   }
   g.computeVertexNormals();
-  return new THREE.Mesh(g,new THREE.MeshPhongMaterial({color:color,shininess:2}));
+  return g;
+}
+function rock(r,color,seed){
+  const i=seed%18;
+  if(!ROCKGEOS[i])ROCKGEOS[i]=rockGeo(i*7+3);
+  const m=new THREE.Mesh(ROCKGEOS[i],new THREE.MeshPhongMaterial({color:color,shininess:2}));
+  m.scale.setScalar(r);
+  return m;
 }
 function sunLight(g,pos,intensity,range){
   /* point light with distance cap: a stop's light can never reach a
@@ -1331,7 +1416,7 @@ const BUILDERS=[
     dust.quaternion.setFromRotationMatrix(bas);
     dust.position.set(C[0],C[1],C[2]);
     g.add(dust);
-    const NP=COARSE?2600:4500,pp=new Float32Array(NP*3),tp=[0,0,0];
+    const NP=4500,pp=new Float32Array(NP*3),tp=[0,0,0];
     for(let i=0;i<NP;i++){
       beltPos((h3(i,1,22,171)-.5)*.21,(h3(i,2,22,171)-.5)*26,(h3(i,3,22,171)-.5)*7,tp);
       pp[i*3]=tp[0];pp[i*3+1]=tp[1];pp[i*3+2]=tp[2];
@@ -1344,7 +1429,7 @@ const BUILDERS=[
       blending:THREE.AdditiveBlending,depthWrite:false}));
     g.add(st.dustPts);
     st.rocks=[];
-    for(let i=0,NR=COARSE?100:210;i<NR;i++){
+    for(let i=0;i<210;i++){
       const r=rock(.07+.4*Math.pow(h3(i,7,22,171),1.8),0x6f6a62,i+50);
       r.userData.o={th:(h3(i,4,22,173)-.5)*.2,rr:(h3(i,5,22,171)-.5)*22,
         h:(h3(i,6,22,171)-.5)*6.5,sp:.00028+.00022*h3(i,8,22,171),
@@ -1969,11 +2054,12 @@ function hintFade(){document.getElementById('hintkeys').classList.add('faded');}
 
 /* main loop */
 let last=performance.now();
-/* one-way pixel-ratio ratchet: protects weak GPUs driving big screens */
+/* one-way pixel-ratio ratchet: protects weak GPUs at any screen size.
+   Four steps reach a true floor of 1.0 from the 2.0 cap. */
 let __ema=16,__badT=0,__warm=0,__rsteps=0;
 function ratchet(dt){
   __warm+=dt;
-  if(__warm<4||__rsteps>=2)return;
+  if(__warm<4||__rsteps>=4)return;
   __ema+=(dt*1000-__ema)*.05;
   if(__ema>24){
     __badT+=dt;
