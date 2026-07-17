@@ -905,8 +905,8 @@ function starPositions(N,seed){
     p.userData={baseOp:op,baseSize:size,fadeK:.62,tw:null};
     grp.add(p);
   }
-  tier(4200,0,1.1,.55,0xbfc8d4);                  /* dust — the faint field */
-  tier(1500,5,1.9,.8,0xdfe6ee);                   /* mid                    */
+  tier(4200,0,.85,.55,0xbfc8d4);                  /* dust — the faint field */
+  tier(1500,5,1.45,.8,0xdfe6ee);                  /* mid                    */
   /* bright tier: tinted, split in three phase groups for a quiet twinkle */
   const NB=220;
   const bp=starPositions(NB,20),bc=new Float32Array(NB*3);
@@ -923,14 +923,14 @@ function starPositions(N,seed){
     const g=new THREE.BufferGeometry();
     g.setAttribute('position',new THREE.Float32BufferAttribute(pp,3));
     g.setAttribute('color',new THREE.Float32BufferAttribute(cc,3));
-    const p=new THREE.Points(g,mat(3,1,{vertexColors:true}));
-    p.userData={baseOp:1,baseSize:3,fadeK:.62,tw:{a:.08,o:[.9,1.3,1.7][k],p:k*2.1}};
+    const p=new THREE.Points(g,mat(2.3,1,{vertexColors:true}));
+    p.userData={baseOp:1,baseSize:2.3,fadeK:.62,tw:{a:.08,o:[.9,1.3,1.7][k],p:k*2.1}};
     grp.add(p);
   }
   const hg=new THREE.BufferGeometry();
   hg.setAttribute('position',new THREE.Float32BufferAttribute(bp,3));
-  const halo=new THREE.Points(hg,mat(5.5,.14,{color:0xffffff}));
-  halo.userData={baseOp:.14,baseSize:5.5,fadeK:.62,tw:null};
+  const halo=new THREE.Points(hg,mat(4,.12,{color:0xffffff}));
+  halo.userData={baseOp:.12,baseSize:4,fadeK:.62,tw:null};
   grp.add(halo);
   /* far galaxies: faint island universes among the stars — kept away
      from the forward flight axis so the void stays a void */
@@ -989,7 +989,8 @@ function sphere(r,tex,opts){
   return new THREE.Mesh(new THREE.SphereGeometry(r,r>=1?96:64,r>=1?64:40),m);
 }
 function rim(r,color,opacity){
-  const m=new THREE.Mesh(new THREE.SphereGeometry(r*1.035,32,24),
+  /* high tessellation: a polygonal silhouette shimmers at the limb */
+  const m=new THREE.Mesh(new THREE.SphereGeometry(r*1.035,96,64),
     new THREE.MeshBasicMaterial({color:color,transparent:true,opacity:opacity,
       side:THREE.BackSide,blending:THREE.AdditiveBlending,depthWrite:false}));
   m.renderOrder=2;return m;
@@ -1111,8 +1112,11 @@ function makeEarthMaterial(sun){
 }
 /* --- Sun shader: scrolling plasma, limb darkening (or EUV limb brightening) --- */
 function makeSunMaterial(){
+  /* boiling photosphere: the NASA map is domain-warped by animated
+     noise and re-lit through a physical temperature ramp — granules
+     churn, faculae brighten toward the limb, the limb darkens red */
   return new THREE.ShaderMaterial({
-    uniforms:{map:{value:TEX.sun},uvOff:{value:0},fcMode:{value:0}},
+    uniforms:{map:{value:TEX.sun},uvOff:{value:0},fcMode:{value:0},uTime:{value:0}},
     vertexShader:[
       'varying vec2 vUv;varying vec3 vN;varying vec3 vWp;',
       'void main(){vUv=uv;vN=normalize(mat3(modelMatrix)*normal);',
@@ -1120,26 +1124,48 @@ function makeSunMaterial(){
       ' gl_Position=projectionMatrix*viewMatrix*wp;}'
     ].join('\n'),
     fragmentShader:[
-      'uniform sampler2D map;uniform float uvOff;uniform float fcMode;',
+      'uniform sampler2D map;uniform float uvOff;uniform float fcMode;uniform float uTime;',
       'varying vec2 vUv;varying vec3 vN;varying vec3 vWp;',
+      'float h21(vec2 p){p=fract(p*vec2(123.34,456.21));p+=dot(p,p+45.32);return fract(p.x*p.y);}',
+      'float vn(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.0-2.0*f);',
+      ' return mix(mix(h21(i),h21(i+vec2(1,0)),f.x),mix(h21(i+vec2(0,1)),h21(i+vec2(1,1)),f.x),f.y);}',
+      'float fbm2(vec2 p){float a=.5,t=0.;for(int i=0;i<3;i++){t+=a*vn(p);p*=2.17;a*=.5;}return t;}',
       'void main(){',
       ' vec2 uv=vec2(vUv.x+uvOff,vUv.y);',
-      ' vec3 c=pow(texture2D(map,uv).rgb,vec3(2.2));',
-      ' vec3 c2=pow(texture2D(map,uv*1.7+vec2(0.31,0.13)).rgb,vec3(2.2));',
-      ' c*=0.78+0.5*dot(c2,vec3(0.333));',
-      ' float hot=pow(max(dot(c,vec3(0.333))-0.5,0.0)*2.0,1.4);',
-      ' c=mix(c,vec3(1.0,0.92,0.72),hot*0.45);',
-      ' vec3 c3=pow(texture2D(map,uv*0.33+vec2(0.71,0.42)).rgb,vec3(2.2));',
-      ' c*=0.86+0.34*dot(c3,vec3(0.333));',
+      ' float t=uTime;',
+      /* animated domain warp: convection slowly kneads the surface */
+      ' vec2 w=vec2(fbm2(uv*6.0+t*.05),fbm2(uv*6.0+vec2(13.7,7.1)-t*.045))-.5;',
+      ' vec2 uvA=uv+w*.02;',
+      ' float base=dot(pow(texture2D(map,uvA).rgb,vec3(2.2)),vec3(.333));',
+      ' float mid =dot(pow(texture2D(map,uvA*2.3+vec2(.31,.13)+w*.05).rgb,vec3(2.2)),vec3(.333));',
+      /* boiling granulation: fine cells that actually churn over time */
+      ' float gran=fbm2(uv*46.0+w*9.0+vec2(t*.16,-t*.11));',
+      ' gran=gran*gran*(3.0-2.0*gran);',
+      ' float L=base*(.55+.75*mid)*(.72+.56*gran);',
+      ' L=pow(L*2.1,1.25);',
       ' float mu=clamp(dot(normalize(vN),normalize(cameraPosition-vWp)),0.0,1.0);',
+      ' vec3 c;',
       ' if(fcMode<0.5){',
-      '  float limb=pow(mu,0.6);',
-      '  c*=(0.30+1.05*limb);',
-      '  c=mix(c*vec3(1.0,0.45,0.18),c,pow(mu,0.4));',
-      '  c*=1.5;',
+      /* temperature ramp: ember red -> orange -> yellow-white core */
+      '  vec3 ember=vec3(.42,.05,.002),orange=vec3(1.0,.30,.02),',
+      '       gold=vec3(1.0,.62,.13),white=vec3(1.05,.94,.72);',
+      '  c=mix(ember,orange,smoothstep(0.0,.45,L));',
+      '  c=mix(c,gold,smoothstep(.35,.85,L));',
+      '  c=mix(c,white,smoothstep(.8,1.6,L));',
+      /* faculae: bright flecks that show best toward the limb */
+      '  float fac=smoothstep(.72,.95,gran)*pow(1.0-mu,1.6);',
+      '  c+=vec3(1.0,.85,.55)*fac*.5;',
+      /* limb darkening, reddened at the very edge */
+      '  float limb=.24+1.06*pow(mu,.5);',
+      '  c*=limb;',
+      '  c=mix(vec3(c.r,c.g*.55,c.b*.2),c,smoothstep(0.0,.35,mu));',
+      '  c*=1.45;',
       ' }else{',
-      '  c*=(0.5+0.95*pow(1.0-mu,1.1));',
-      '  c*=1.7;',
+      /* false color: SDO-style gold EUV, limb-brightened */
+      '  float e=pow(L,1.1)*(.45+1.1*pow(1.0-mu,1.2));',
+      '  c=mix(vec3(.06,.025,.0),vec3(1.0,.72,.18),smoothstep(.05,.9,e));',
+      '  c+=vec3(1.0,.9,.6)*smoothstep(.75,1.3,e)*.6;',
+      '  c*=1.6;',
       ' }',
       ' gl_FragColor=vec4(pow(max(c,vec3(0.0)),vec3(1.0/2.2)),1.0);',
       '}'
@@ -1504,7 +1530,7 @@ const BUILDERS=[
     sunFill(g);
     const nf=new THREE.PointLight(0x36455c,.43,120,1);nf.position.set(-28,-8,-20);g.add(nf);
     g.add(name(spin(new THREE.Mesh(new THREE.SphereGeometry(1.5,96,64),makeEarthMaterial([7,3,4])),.02),'Earth',st));
-    const cl=spin(new THREE.Mesh(new THREE.SphereGeometry(1.518,48,32),
+    const cl=spin(new THREE.Mesh(new THREE.SphereGeometry(1.518,96,64),
       new THREE.MeshPhongMaterial({map:TEX.clouds,transparent:true,depthWrite:false,shininess:1,specular:0x000000})),.026);
     cl.renderOrder=1;g.add(cl);
     g.add(rim(1.5,0x6fa8e8,.1));
@@ -1603,6 +1629,7 @@ const BUILDERS=[
     }
     s.update=function(dt,el){
       s.body.material.uniforms.uvOff.value+=.0035*dt;
+      s.body.material.uniforms.uTime.value=el;
       for(let i=0;i<s.proms.length;i++){
         const pm=s.proms[i];
         pm.material.opacity=.5+.2*Math.sin(el*.5+i*2.1);
@@ -1890,7 +1917,7 @@ function transitTo(j){
     if(e>.82)pA[k]=pA[k]+(pit1-pA[k])*sm5((e-.82)/.18);
   }
   pA[SM]=pit1;
-  TR={to:j,t:0,dur:(j===5?7.4:(j===7?9.2:6.4)),
+  TR={to:j,t:0,dur:(j===3?9.6:j===5?7.4:(j===7?9.2:6.4)),
     yawA:yA,pitA:pA,tgt:entryL,
     path:tpath};
   audio.whoosh(TR.dur/SPD);
@@ -1903,9 +1930,9 @@ function transitTo(j){
 const COMET={g:null,on:false,p0:null,p1:null};
 function buildComet(){
   const g=new THREE.Group();
-  g.add(new THREE.Mesh(new THREE.SphereGeometry(.18,12,10),
+  g.add(new THREE.Mesh(new THREE.SphereGeometry(.22,12,10),
     new THREE.MeshBasicMaterial({color:0xdcecff})));
-  g.add(sprite(glowTexture('rgba(215,235,255,.95)','rgba(150,190,255,.35)'),3.2,0xcfe4ff));
+  g.add(sprite(glowTexture('rgba(215,235,255,.95)','rgba(150,190,255,.35)'),4.2,0xcfe4ff));
   function tail(n,len,spread,col,op,size){
     const a=new Float32Array(n*3);
     for(let i=0;i<n;i++){
@@ -1921,24 +1948,31 @@ function buildComet(){
       transparent:true,opacity:op,sizeAttenuation:true,
       blending:THREE.AdditiveBlending,depthWrite:false}));
   }
-  g.add(tail(110,13,1.4,0x9fc4ff,.8,.48));   /* ion tail — blue, long, narrow */
-  g.add(tail(140,7.5,2.2,0xf2e6d8,.6,.4));   /* dust tail — warm, short, wide */
+  g.add(tail(130,16,1.7,0x9fc4ff,.8,.55));   /* ion tail — blue, long, narrow */
+  g.add(tail(160,9,2.6,0xf2e6d8,.6,.46));    /* dust tail — warm, short, wide */
   g.visible=false;
   scene.add(g);
   COMET.g=g;
 }
 function cometArm(){
-  /* cross the camera's line of flight ~30 units ahead of mid-transit */
-  const c0=TR.path(.5).pos,c1=TR.path(.95).pos;
-  const dx=c1[0]-c0[0],dy=c1[1]-c0[1],dz=c1[2]-c0[2];
+  /* the overtaking crossing: the comet enters abeam of our right
+     shoulder moving faster than us, cuts across our path ahead, and
+     exits away to the left — the gaze sweeps right → forward → left
+     with it, then releases to the arrival pursuit */
+  const a=TR.path(.12).pos,b=TR.path(1).pos;
+  const dx=b[0]-a[0],dy=b[1]-a[1],dz=b[2]-a[2];
   const dl=Math.hypot(dx,dy,dz)||1;
   const d=[dx/dl,dy/dl,dz/dl];
   const r=[-d[2],0,d[0]];const rl=Math.hypot(r[0],r[2])||1;r[0]/=rl;r[2]/=rl;
-  /* biased to one side so it sweeps past the camera, never through it */
-  const bx=c0[0]+d[0]*30+r[0]*9,by=c0[1]+d[1]*30,bz=c0[2]+d[2]*30+r[2]*9;
-  COMET.p0=[bx-r[0]*20,by+9,bz-r[2]*20];
-  COMET.p1=[bx+r[0]*24,by-7,bz+r[2]*24];
+  COMET.p0=[a[0]+r[0]*15-d[0]*6,a[1]+4,a[2]+r[2]*15-d[2]*6];
+  COMET.p1=[b[0]-r[0]*40+d[0]*26,b[1]-4,b[2]-r[2]*40+d[2]*26];
   COMET.on=true;COMET.g.visible=true;
+}
+/* how strongly the transit camera gazes at the comet, by flight progress:
+   ease in after departure, hold through the pass, release for arrival */
+function cometGaze(e){
+  const ss=function(x){x=Math.max(0,Math.min(1,x));return x*x*(3-2*x);};
+  return .85*Math.min(ss((e-.08)/.22),1-ss((e-.62)/.2));
 }
 function cometUpdate(q){
   const px=COMET.p0[0]+(COMET.p1[0]-COMET.p0[0])*q,
@@ -2106,7 +2140,18 @@ function tick(now){
       ya=ya+(bb-ya)*bl;pa=pa+(vv-pa)*bl;
     }
     const cp=Math.cos(pa);
-    const lx=c.pos[0]+Math.sin(ya)*cp*60,ly=c.pos[1]+Math.sin(pa)*60,lz=c.pos[2]-Math.cos(ya)*cp*60;
+    let lx=c.pos[0]+Math.sin(ya)*cp*60,ly=c.pos[1]+Math.sin(pa)*60,lz=c.pos[2]-Math.cos(ya)*cp*60;
+    if(COMET.on){
+      /* the tracking shot: lean the gaze toward the passing comet */
+      const w=cometGaze(eu);
+      if(w>0){
+        const gx=COMET.g.position.x-c.pos[0],gy=COMET.g.position.y-c.pos[1],gz=COMET.g.position.z-c.pos[2];
+        const gl=Math.hypot(gx,gy,gz)||1;
+        lx+=((c.pos[0]+gx/gl*60)-lx)*w;
+        ly+=((c.pos[1]+gy/gl*60)-ly)*w;
+        lz+=((c.pos[2]+gz/gl*60)-lz)*w;
+      }
+    }
     camera.lookAt(lx,ly,lz);
     lastLook=[lx,ly,lz];
     if(TR.t>=TR.dur)finishTransit();
