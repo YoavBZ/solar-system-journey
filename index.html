@@ -1955,16 +1955,16 @@ function buildComet(){
   COMET.g=g;
 }
 function cometArm(){
-  /* enter from the right of the flight line and sweep out far left, so
-     the tracking gaze pans right, holds, then rotates left with it */
+  /* appear just right of the flight line and recede far right: the
+     tracking gaze makes one gentle rightward pan, then releases */
   const c0=TR.path(.5).pos,c1=TR.path(.95).pos;
   const dx=c1[0]-c0[0],dy=c1[1]-c0[1],dz=c1[2]-c0[2];
   const dl=Math.hypot(dx,dy,dz)||1;
   const d=[dx/dl,dy/dl,dz/dl];
   const r=[-d[2],0,d[0]];const rl=Math.hypot(r[0],r[2])||1;r[0]/=rl;r[2]/=rl;
   const bx=c0[0]+d[0]*30,by=c0[1]+d[1]*30,bz=c0[2]+d[2]*30;
-  COMET.p0=[bx+r[0]*26,by+9,bz+r[2]*26];
-  COMET.p1=[bx-r[0]*44,by-8,bz-r[2]*44];
+  COMET.p0=[bx+r[0]*6,by+8,bz+r[2]*6];
+  COMET.p1=[bx+r[0]*52,by-7,bz+r[2]*52];
   COMET.on=true;COMET.g.visible=true;
 }
 /* how strongly the transit camera gazes at the comet, by flight progress:
