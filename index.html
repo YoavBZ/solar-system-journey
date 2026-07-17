@@ -217,6 +217,59 @@
     body.facts-open #capzone{opacity:0;transition:opacity .3s}
     .fx{width:40px;height:40px}
   }
+  /* ---------- large displays: 2K laptops / 1080p TVs ---------- */
+  @media (min-width:1920px) and (min-height:1000px){
+    #cap{max-width:1280px}
+    #cap.k-title{font-size:clamp(27px,5vw,76px)}
+    #cap.k-sub{font-size:clamp(17px,2.2vw,32px)}
+    #cap.k-note{font-size:clamp(13px,1.6vw,21px)}
+    #cap.k-fin{font-size:clamp(28px,5.6vw,88px)}
+    #splash h1{font-size:clamp(34px,7vw,96px)}
+    #brand{font-size:19px}
+    #where{font-size:16px}
+    .dot{width:9px;height:9px}
+    #dots{gap:14px}
+    .pill{font-size:16px;padding:11px 20px}
+    .rnd{width:54px;height:54px;font-size:19px}
+    #btnSpeed{font-size:17px}
+    .lbl{font-size:15px}
+    #facts{width:min(460px,34vw)}
+    #factBody{font-size:18px}
+    #factsKick{font-size:15px}
+    #hintkeys{font-size:14px}
+    #credit{font-size:12.5px}
+    #tip{font-size:15px}
+  }
+  /* ---------- 4K TVs, ten-foot viewing ---------- */
+  @media (min-width:3000px) and (min-height:1600px){
+    #cap{max-width:1900px}
+    #cap.k-title{font-size:clamp(27px,5vw,108px)}
+    #cap.k-sub{font-size:clamp(17px,2.2vw,46px)}
+    #cap.k-note{font-size:clamp(13px,1.6vw,30px)}
+    #cap.k-fin{font-size:clamp(28px,5.6vw,126px)}
+    #cap{text-shadow:0 3px 34px rgba(0,0,0,.85)}
+    #capzone{bottom:13vh}
+    #splash h1{font-size:clamp(34px,7vw,136px)}
+    #brand{font-size:27px}
+    #where{font-size:22px}
+    .dot{width:13px;height:13px}
+    #dots{gap:20px}
+    .pill{font-size:22px;padding:15px 28px}
+    .rnd{width:76px;height:76px;font-size:27px}
+    #btnSpeed{font-size:24px}
+    .lbl{font-size:21px}
+    #facts{width:min(680px,30vw);border-radius:20px;padding:24px 28px 18px}
+    #factBody{font-size:26px}
+    #factsKick{font-size:20px}
+    #factsStop{font-size:16px}
+    #factCount{font-size:16px}
+    #factsHint{font-size:15px}
+    .fx{width:46px;height:46px;font-size:21px}
+    #hintkeys{font-size:19px}
+    #credit{font-size:16px}
+    #tip{font-size:21px;padding:8px 16px}
+    body::after{background:radial-gradient(ellipse at center, transparent 55%, rgba(0,0,0,.42) 100%)}
+  }
   @media (prefers-reduced-motion: reduce){
     #cap,#fader,#splash,#facts{transition-duration:.15s}
     #btnFacts.nudge{animation:none}
@@ -392,6 +445,23 @@ function glowTexture(inner,mid){
   x.fillStyle=g;x.fillRect(0,0,256,256);
   return texFrom(c);
 }
+/* distant-sun glow with a quiet four-point diffraction cross */
+function sunGlowTexture(){
+  const c=document.createElement('canvas');c.width=c.height=256;
+  const x=c.getContext('2d');
+  const g=x.createRadialGradient(128,128,0,128,128,128);
+  g.addColorStop(0,'rgba(255,240,214,1)');
+  g.addColorStop(.35,'rgba(255,200,130,.5)');
+  g.addColorStop(1,'rgba(0,0,0,0)');
+  x.fillStyle=g;x.fillRect(0,0,256,256);
+  const lh=x.createLinearGradient(0,128,256,128);
+  lh.addColorStop(0,'rgba(255,230,190,0)');lh.addColorStop(.5,'rgba(255,235,200,.12)');lh.addColorStop(1,'rgba(255,230,190,0)');
+  x.fillStyle=lh;x.fillRect(0,126,256,4);
+  const lv=x.createLinearGradient(128,0,128,256);
+  lv.addColorStop(0,'rgba(255,230,190,0)');lv.addColorStop(.5,'rgba(255,235,200,.12)');lv.addColorStop(1,'rgba(255,230,190,0)');
+  x.fillStyle=lv;x.fillRect(126,0,4,256);
+  return texFrom(c);
+}
 /* streaked corona sprite */
 function coronaTexture(){
   const c=document.createElement('canvas');c.width=c.height=512;
@@ -443,9 +513,56 @@ function coronaTexture(){
 
 const TEX={};                    /* registry — comparison scenes reuse the same paint */
 const builtSteps={};
+/* the galactic band: one inside-out sphere, painted once, infinitely far */
+function buildBand(){
+  const W=COARSE?512:1024,H=W/2;
+  const c=document.createElement('canvas');c.width=W;c.height=H;
+  const x=c.getContext('2d');
+  const img=x.createImageData(W,H),d=img.data;
+  const tl=rad(62);
+  const n={x:Math.sin(tl),y:Math.cos(tl)*.35,z:Math.cos(tl)};
+  const nl=Math.hypot(n.x,n.y,n.z);n.x/=nl;n.y/=nl;n.z/=nl;
+  for(let j=0;j<H;j++){
+    const lat=(j/H-.5)*Math.PI,cl=Math.cos(lat),sl=Math.sin(lat);
+    for(let i=0;i<W;i++){
+      const lon=(i/W)*TAU;
+      const px=cl*Math.cos(lon),py=sl,pz=cl*Math.sin(lon);
+      const dist=Math.asin(Math.min(1,Math.abs(px*n.x+py*n.y+pz*n.z)));
+      const core=Math.exp(-(dist*dist)/.0968);           /* band, sigma .22 */
+      const m=fbm(px*3.1,py*3.1,pz*3.1,401,4)*.9+.35;    /* mottling */
+      const lane=Math.exp(-(dist*dist)/.0098)             /* dust lanes */
+        *Math.max(0,fbm(px*6.3,py*6.3,pz*6.3,911,3)-.42)*2.2;
+      const v=Math.max(0,core*m-lane*core);
+      /* two nebular breaths off-band: one cool haze, one faint gold */
+      const g1=Math.exp(-((px-.55)*(px-.55)+(py-.5)*(py-.5)+(pz+.35)*(pz+.35))/.32);
+      const g2=Math.exp(-((px+.62)*(px+.62)+(py+.28)*(py+.28)+(pz-.4)*(pz-.4))/.4);
+      const o=(j*W+i)*4;
+      d[o]  =Math.min(255,v*26+g1*10+g2*9.6);
+      d[o+1]=Math.min(255,v*30+g1*11+g2*7.4);
+      d[o+2]=Math.min(255,v*40+g1*14+g2*4.6);
+      d[o+3]=255;
+    }
+  }
+  x.putImageData(img,0,0);
+  /* unresolvable grain behind the geometric stars */
+  x.globalCompositeOperation='lighter';
+  const NS=COARSE?1200:3000;
+  for(let i=0;i<NS;i++){
+    x.fillStyle='rgba(210,220,235,'+(.15+.35*h3(i,5,77,13)).toFixed(2)+')';
+    x.fillRect(Math.floor(h3(i,1,77,13)*W),Math.floor(h3(i,2,77,13)*H),1,1);
+  }
+  const mesh=new THREE.Mesh(new THREE.SphereGeometry(870,48,32),
+    new THREE.MeshBasicMaterial({map:texFrom(c),side:THREE.BackSide,transparent:true,
+      opacity:.9,blending:THREE.AdditiveBlending,depthWrite:false}));
+  mesh.userData={baseOp:.9,fadeK:.25,tw:null};
+  window.__stars.add(mesh);
+}
 function buildTextures(step){
   if(builtSteps[step])return; builtSteps[step]=1;
   switch(step){
+  case 'band':
+    buildBand();
+    break;
   case 'giants':
     TEX.neptune=texFrom(giantCanvas(
       [[0,'#22395c'],[.18,'#2b4a7c'],[.34,'#3d64a4'],[.5,'#325288'],[.64,'#4870b2'],[.8,'#2b4876'],[1,'#1d3153']],
@@ -707,26 +824,82 @@ const AMB=new THREE.AmbientLight(0x223140,.3);   /* faint night-side lift only *
 AMB.layers.enableAll();
 scene.add(AMB);
 
-/* restrained global star field */
-(function stars(){
-  const N=1400,pos=new Float32Array(N*3);
+/* star field with hierarchy: three magnitudes + halo, sized for the screen */
+function starPositions(N,seed){
+  const pos=new Float32Array(N*3);
   for(let i=0;i<N;i++){
-    const th=h3(i,1,0,7)*TAU, ph=Math.acos(2*h3(i,2,0,7)-1), r=900;
+    const th=h3(i,1,seed,7)*TAU, ph=Math.acos(2*h3(i,2,seed,7)-1), r=900;
     pos[i*3]=r*Math.sin(ph)*Math.cos(th);
     pos[i*3+1]=r*Math.cos(ph);
     pos[i*3+2]=r*Math.sin(ph)*Math.sin(th);
   }
-  const g=new THREE.BufferGeometry();
-  g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));
+  return pos;
+}
+(function stars(){
   const grp=new THREE.Group();
-  grp.add(new THREE.Points(g,new THREE.PointsMaterial({color:0xdfe6ee,map:glowTexture('rgba(255,255,255,1)','rgba(255,255,255,0)'),blending:THREE.AdditiveBlending,size:2.4,sizeAttenuation:false,transparent:true,opacity:.8,depthWrite:false})));
-  grp.add(new THREE.Points(g.clone(),new THREE.PointsMaterial({color:0xffffff,map:glowTexture('rgba(255,255,255,1)','rgba(255,255,255,0)'),blending:THREE.AdditiveBlending,size:4,sizeAttenuation:false,transparent:true,opacity:.22,depthWrite:false})));
+  const glow=glowTexture('rgba(255,255,255,1)','rgba(255,255,255,0)');
+  function mat(size,op,extra){
+    return new THREE.PointsMaterial(Object.assign({map:glow,blending:THREE.AdditiveBlending,
+      size:size,sizeAttenuation:false,transparent:true,opacity:op,depthWrite:false},extra||{}));
+  }
+  function tier(N,seed,size,op,color){
+    const g=new THREE.BufferGeometry();
+    g.setAttribute('position',new THREE.Float32BufferAttribute(starPositions(N,seed),3));
+    const p=new THREE.Points(g,mat(size,op,{color:color}));
+    p.userData={baseOp:op,baseSize:size,fadeK:.62,tw:null};
+    grp.add(p);
+  }
+  tier(COARSE?1400:4200,0,1.5,.55,0xbfc8d4);      /* dust — the faint field */
+  tier(COARSE?500:1500,5,2.6,.8,0xdfe6ee);        /* mid — today's look     */
+  /* bright tier: tinted, split in three phase groups for a quiet twinkle */
+  const NB=COARSE?90:220;
+  const bp=starPositions(NB,20),bc=new Float32Array(NB*3);
+  for(let i=0;i<NB;i++){
+    const u=h3(i,3,20,11);
+    const c=(u<.7)?[1,1,1]:(u<.9)?[.96,.85,.68]:[.72,.8,.94];
+    bc.set(c,i*3);
+  }
+  for(let k=0;k<3;k++){
+    const idx=[];for(let i=k;i<NB;i+=3)idx.push(i);
+    const pp=new Float32Array(idx.length*3),cc=new Float32Array(idx.length*3);
+    idx.forEach(function(i,j){
+      pp.set(bp.subarray(i*3,i*3+3),j*3);cc.set(bc.subarray(i*3,i*3+3),j*3);});
+    const g=new THREE.BufferGeometry();
+    g.setAttribute('position',new THREE.Float32BufferAttribute(pp,3));
+    g.setAttribute('color',new THREE.Float32BufferAttribute(cc,3));
+    const p=new THREE.Points(g,mat(4.5,1,{vertexColors:true}));
+    p.userData={baseOp:1,baseSize:4.5,fadeK:.62,tw:{a:.08,o:[.9,1.3,1.7][k],p:k*2.1}};
+    grp.add(p);
+  }
+  const hg=new THREE.BufferGeometry();
+  hg.setAttribute('position',new THREE.Float32BufferAttribute(bp,3));
+  const halo=new THREE.Points(hg,mat(9,.18,{color:0xffffff}));
+  halo.userData={baseOp:.18,baseSize:9,fadeK:.62,tw:null};
+  grp.add(halo);
   scene.add(grp);window.__stars=grp;
 })();
+function sizeStars(){
+  /* point sizes are drawing-buffer pixels: hold a constant screen fraction */
+  if(!window.__stars)return;
+  const s=new THREE.Vector2();renderer.getDrawingBufferSize(s);
+  const k=Math.max(.6,s.y/1080);
+  for(const p of window.__stars.children)
+    if(p.userData&&p.userData.baseSize)p.material.size=p.userData.baseSize*k;
+}
+function applyFraming(){
+  /* above 16:9, hold the horizontal FOV so ultrawides crop vertically
+     instead of gaining empty side thirds; authored look intact at <=16:9 */
+  const a=innerWidth/innerHeight;
+  camera.aspect=a;
+  camera.fov=(a>16/9)?Math.max(33,2*Math.atan(Math.tan(rad(21))*(16/9)/a)*57.29578):42;
+  camera.updateProjectionMatrix();
+}
+applyFraming();sizeStars();
 
 addEventListener('resize',()=>{
-  camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();
+  applyFraming();
   renderer.setSize(innerWidth,innerHeight);
+  sizeStars();
   if(cur>=0&&stops[cur]&&stops[cur].layout)stops[cur].layout(camera.aspect);
 });
 /* iOS reports stale dimensions at rotate time; re-run once settled */
@@ -1796,9 +1969,26 @@ function hintFade(){document.getElementById('hintkeys').classList.add('faded');}
 
 /* main loop */
 let last=performance.now();
+/* one-way pixel-ratio ratchet: protects weak GPUs driving big screens */
+let __ema=16,__badT=0,__warm=0,__rsteps=0;
+function ratchet(dt){
+  __warm+=dt;
+  if(__warm<4||__rsteps>=2)return;
+  __ema+=(dt*1000-__ema)*.05;
+  if(__ema>24){
+    __badT+=dt;
+    if(__badT>2){
+      __rsteps++;__badT=0;__ema=16;
+      renderer.setPixelRatio(Math.max(1,renderer.getPixelRatio()-.25));
+      renderer.setSize(innerWidth,innerHeight);
+      sizeStars();
+    }
+  }else __badT=0;
+}
 function tick(now){
   requestAnimationFrame(tick);
   const dt=Math.min((now-last)/1000,.05);last=now;
+  ratchet(dt);
   /* jdt: journey time — scaled by the speed control; dt stays real
      so smoothing and optical-flow rates keep their physical meaning */
   const jdt=dt*SPD;
@@ -1897,9 +2087,12 @@ function tick(now){
     const bl2=Math.min(1,dt*3.2);
     window.__kfs=(window.__kfs||0)+(ktS-(window.__kfs||0))*bl2;
     window.__kfc=(window.__kfc||0)+(ktC-(window.__kfc||0))*bl2;
-    const ch=window.__stars.children;
-    if(ch[0])ch[0].material.opacity=.8*(1-.62*window.__kfs);
-    if(ch[1])ch[1].material.opacity=.22*(1-.62*window.__kfs);
+    for(const cm of window.__stars.children){
+      const ud=cm.userData||{};
+      if(ud.baseOp===undefined)continue;
+      const tw=(ud.tw&&!RM)?1+ud.tw.a*Math.sin(GT*ud.tw.o+ud.tw.p):1;
+      cm.material.opacity=ud.baseOp*(1-(ud.fadeK||.62)*window.__kfs)*tw;
+    }
     for(const cm of (MATS.clouds||[]))cm.opacity=(cm.userData&&cm.userData.op||.95)*(1-.5*window.__kfc);
   }
   const gs=window.__globalSun;
@@ -2378,6 +2571,7 @@ let started=false;
 let prepP=null;
 async function prepare(){
   const TEXSTEPS=[
+    ['Pouring the Milky Way…','band'],
     ['Grinding pigments for the giants…','giants'],
     ['Cratering the rocky worlds…','rocky'],
     ['Carving the moons…','moons'],
@@ -2406,7 +2600,7 @@ async function prepare(){
   }
   ray.layers.enableAll();
   const sunA=stops[10].anchor;
-  const gsun=sprite(glowTexture('rgba(255,240,214,1)','rgba(255,200,130,.5)'),46,0xffdca0);
+  const gsun=sprite(sunGlowTexture(),58,0xffdca0);
   gsun.position.set(sunA[0],sunA[1]+2,sunA[2]);
   const gcore=sprite(glowTexture('rgba(255,255,255,1)','rgba(255,240,220,.6)'),12,0xffffff);
   gcore.position.copy(gsun.position);
