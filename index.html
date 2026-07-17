@@ -183,13 +183,15 @@
        the hint and credit move out of its row: hint stays hidden
        (the splash teaches swipe), credit centers under the buttons */
     #hintkeys{display:none}
-    #credit{left:0;right:0;text-align:center;bottom:2px;font-size:9.5px}
+    #credit{left:0;right:0;text-align:center;font-size:9.5px;
+      bottom:calc(4px + env(safe-area-inset-bottom,0px))}
     #dots{gap:7px;top:14px}
     .dot{width:6px;height:6px}
     /* keep captions clear of the buttons + context pill even when
        browser chrome shrinks the viewport */
-    #capzone{bottom:max(18vh,calc(112px + env(safe-area-inset-bottom,0px)))}
-    #controls{gap:8px;right:14px;bottom:14px}
+    #capzone{bottom:max(18vh,calc(120px + env(safe-area-inset-bottom,0px)))}
+    #controls{gap:8px;right:calc(14px + env(safe-area-inset-right,0px));
+      bottom:calc(20px + env(safe-area-inset-bottom,0px))}
     .rnd{width:40px;height:40px;font-size:15px}
     .pill{padding:8px 13px;font-size:12.5px}
     .lbl{font-size:10.5px;letter-spacing:.1em}
