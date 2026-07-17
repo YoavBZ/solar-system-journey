@@ -14,7 +14,7 @@ Each stop plays out as a slow camera move with film-style captions. Let it run a
 
 ## Features
 
-- **One file.** Planet textures (NASA-derived maps) are embedded as data URIs, so `index.html` carries everything except two CDN dependencies (three.js and fonts).
+- **Fully self-hosted.** No CDNs, no third-party requests: three.js, the fonts, and the NASA-derived planet maps all live in this repo. The page is interactive in about a second; textures stream in behind the procedurally painted planets.
 - **Generative score.** No audio files: a four-voice Web Audio drone whose harmony warms and brightens as you fall sunward, a filtered-noise whoosh during flights between worlds, and a soft arrival tone at each stop. Toggle with the music button or <kbd>m</kbd>.
 - **Living scenes.** Storm bands on Jupiter, Saturn's rings with orbiting moons, a dense asteroid belt, city lights on Earth's night side, solar prominences — plus a false-color science view of the Sun.
 - **Field notes.** An opt-in "Did you know?" layer: three or four curated facts per stop, one at a time, in a quiet card that holds the tour while you read.
@@ -36,14 +36,14 @@ Each stop plays out as a slow camera move with film-style captions. Let it run a
 
 ## Running locally
 
-No build step. Clone the repo and open `index.html` in a browser, or serve it:
+No build step and no internet needed. Clone the repo and serve the folder:
 
 ```sh
 python3 -m http.server
 # then visit http://localhost:8000
 ```
 
-An internet connection is needed the first time for the two CDN resources (three.js r128 and the Fraunces/Outfit fonts).
+(Opening `index.html` straight from the file system mostly works too, but browsers block texture loading from `file://`, so the planets keep their painted procedural looks instead of the NASA maps.)
 
 ## Credits
 
