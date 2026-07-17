@@ -1154,13 +1154,14 @@ function makeSunMaterial(){
       ' vec2 uvA=uv+w*.02;',
       ' float base=dot(pow(texture2D(map,uvA).rgb,vec3(2.2)),vec3(.333));',
       ' float mid =dot(pow(texture2D(map,uvA*2.3+vec2(.31,.13)+w*.05).rgb,vec3(2.2)),vec3(.333));',
-      /* boiling granulation: cells continuously dissolve into new cells
-         (two noise phases cross-faded) rather than the field sliding */
-      ' float ph=t*.28; float ip=floor(ph), fp=ph-ip;',
+      /* boiling granulation: cells continuously dissolve into new cells.
+         Linear cross-fade of two noise phases — constant morph rate, so
+         the churn never stalls or lurches at a phase boundary */
+      ' float ph=t*.22; float ip=floor(ph), fp=ph-ip;',
       ' vec2 gp=uv*46.0+w*9.0+vec2(t*.03,-t*.02);',
       ' float g1=fbm2(gp+vec2(ip*17.13,ip*9.71));',
       ' float g2=fbm2(gp+vec2((ip+1.0)*17.13,(ip+1.0)*9.71));',
-      ' float gran=mix(g1,g2,fp*fp*(3.0-2.0*fp));',
+      ' float gran=mix(g1,g2,fp);',
       ' gran=clamp((gran-.5)*1.35+.5,0.0,1.0);',
       ' gran=gran*gran*(3.0-2.0*gran);',
       ' float L=base*(.55+.75*mid)*(.72+.56*gran);',
@@ -1563,7 +1564,8 @@ const BUILDERS=[
     cl.renderOrder=1;g.add(cl);
     g.add(rim(1.5,0x6fa8e8,.1));
     const mo=name(spin(sphere(.41,TEX.moon),.012),'The Moon',st);
-    mo.rotation.y=-Math.PI/2;          /* the familiar near side — its maria — faces us */
+    mo.rotation.y=-1.45;               /* the familiar near side — its maria — faces us, lit */
+    mo.material.emissive=new THREE.Color(0x11141a);  /* faint earthshine on the dark limb */
     mo.position.set(12,.6,-4);g.add(mo);
   }})],
 
@@ -2467,7 +2469,7 @@ async function applyEmbedded(){
           window.__sunStop.body.material.uniforms.map.value=su;}
     })(),
     (async function(){await swap('mars',EMB.mars);await bump('mars',EMB.marsBump,.05);})(),
-    (async function(){await swap('moon',EMB.moon);await bump('moon',EMB.moonBump,.04);})(),
+    (async function(){await swap('moon',EMB.moon);await bump('moon',EMB.moonBump,.03);})(),
     (async function(){await swap('mercury',EMB.mercury);await bump('mercury',EMB.mercuryBump,.015);})(),
     swap('saturn',EMB.saturn),
     swap('uranus',EMB.uranus),
