@@ -2589,8 +2589,27 @@ const audio={ctx:null,on:false,master:null,verb:null,lp:null,voices:null,wgain:n
   }
 };
 document.addEventListener('visibilitychange',function(){
-  if(document.hidden)return;
-  if(audio.on&&audio.ctx&&audio.ctx.state==='suspended')audio.ctx.resume();
+  if(document.hidden){
+    /* an ambient journey should fall silent in the background:
+       fast fade, then suspend the context entirely */
+    if(audio.ctx&&audio.ctx.state==='running'){
+      const t=audio.ctx.currentTime;
+      audio.master.gain.cancelScheduledValues(t);
+      audio.master.gain.setTargetAtTime(0,t,.08);
+      clearTimeout(audio._hz);
+      audio._hz=setTimeout(function(){
+        if(document.hidden&&audio.ctx.state==='running')audio.ctx.suspend();
+      },400);
+    }
+    return;
+  }
+  clearTimeout(audio._hz);
+  if(audio.on&&audio.ctx){
+    if(audio.ctx.state==='suspended')audio.ctx.resume();
+    const t=audio.ctx.currentTime;
+    audio.master.gain.cancelScheduledValues(t);
+    audio.master.gain.setTargetAtTime(.055,t,.6);   /* gentle return */
+  }
   if(started)reWake();               /* wake locks release on tab switch */
 });
 /* keep the screen awake through a hands-off tour (fails silently) */
