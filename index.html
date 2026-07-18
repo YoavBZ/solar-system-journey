@@ -2344,6 +2344,7 @@ function fitTex(t,cap){
   const c=document.createElement('canvas');c.width=w;c.height=h;
   c.getContext('2d').drawImage(img,0,0,w,h);
   const nt=new THREE.CanvasTexture(c);
+  nt.flipY=t.flipY;                  /* keep the source's flip mode (bitmaps are pre-flipped) */
   nt.encoding=t.encoding;nt.anisotropy=t.anisotropy;
   return nt;
 }
@@ -2409,6 +2410,10 @@ function enhanceJupiter(tex){
     }
     x.putImageData(id,0,0);
     const t=new THREE.CanvasTexture(c);
+    /* the source may be a pre-flipped ImageBitmap (flipY=false): the canvas
+       copy inherits that content, so it must inherit the flip mode too —
+       otherwise Jupiter renders upside-down and the Spot moves north */
+    t.flipY=tex.flipY;
     t.encoding=THREE.sRGBEncoding;
     t.anisotropy=renderer.capabilities.getMaxAnisotropy();
     return{tex:t,u:bu};
