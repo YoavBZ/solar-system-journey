@@ -156,6 +156,24 @@
   #tip.on{opacity:1}
   #tip.touch{transform:translate(-50%,-56px)}
 
+  /* ---------- way-home cue — a whisper at the frame edge nearest the lost world ---------- */
+  #home{position:fixed;z-index:22;opacity:0;pointer-events:none;background:none;border:none;
+    padding:0;cursor:pointer;font-family:'Outfit',sans-serif;font-size:12.5px;letter-spacing:.14em;
+    text-transform:uppercase;color:var(--haze);text-shadow:0 1px 8px rgba(0,0,0,.9);
+    white-space:nowrap;transition:opacity .35s}
+  #home b{color:var(--gold);font-weight:400}
+  #home::before{content:'';position:absolute;inset:-46px -70px;z-index:-1;
+    background:radial-gradient(ellipse closest-side,rgba(232,181,106,.12),transparent 70%)}
+  #home::after{content:'';position:absolute;inset:-14px}   /* generous tap target */
+  #home.on{opacity:1;pointer-events:auto;transition:opacity .8s ease .4s;
+    animation:homebreath 3.5s ease-in-out 1.3s infinite}    /* breath starts after the fade-in */
+  #home.e-l{left:18px;top:50%;transform:translateY(-50%)}
+  #home.e-r{right:18px;top:50%;transform:translateY(-50%)}
+  #home.e-t{left:50%;top:64px;transform:translateX(-50%)}
+  #home.e-b{left:50%;bottom:max(20vh,170px);transform:translateX(-50%)}
+  @keyframes homebreath{0%,100%{opacity:1}50%{opacity:.75}}
+  @media (prefers-reduced-motion:reduce){#home.on{animation:none}}
+
   /* ---------- fader ---------- */
   #fader{position:fixed;inset:0;background:#000;opacity:0;pointer-events:none;
     transition:opacity .75s ease;z-index:50;display:flex;align-items:flex-end;justify-content:center;
@@ -293,6 +311,7 @@
 <div id="capzone"><div id="cap" aria-live="polite"></div></div>
 <div id="labels"></div>
 <div id="tip"></div>
+<button id="home" tabindex="-1"></button>
 
 <div id="controls">
   <div id="ctx"></div>
@@ -1625,7 +1644,7 @@ const BUILDERS=[
       out[2]=C[2]+cr2*(ct*RD[2]+sn*E1[2]);
       return out;
     }
-    const dust=new THREE.Mesh(new THREE.RingGeometry(R-16,R+16,120,1,-.115,.23),
+    const dust=new THREE.Mesh(new THREE.RingGeometry(R-16,R+16,240,1,-.26,.52),
       new THREE.MeshBasicMaterial({map:TEX.beltDust,transparent:true,opacity:.34,blending:THREE.AdditiveBlending,
         side:THREE.DoubleSide,depthWrite:false}));
     (function(){const pos=dust.geometry.attributes.position,uv=dust.geometry.attributes.uv;
@@ -1638,9 +1657,9 @@ const BUILDERS=[
     dust.quaternion.setFromRotationMatrix(bas);
     dust.position.set(C[0],C[1],C[2]);
     g.add(dust);
-    const NP=4500,pp=new Float32Array(NP*3),tp=[0,0,0];
+    const NP=7000,pp=new Float32Array(NP*3),tp=[0,0,0];
     for(let i=0;i<NP;i++){
-      beltPos((h3(i,1,22,171)-.5)*.21,(h3(i,2,22,171)-.5)*26,(h3(i,3,22,171)-.5)*7,tp);
+      beltPos((h3(i,1,22,171)-.5)*.5,(h3(i,2,22,171)-.5)*26,(h3(i,3,22,171)-.5)*7,tp);
       pp[i*3]=tp[0];pp[i*3+1]=tp[1];pp[i*3+2]=tp[2];
     }
     const pg=new THREE.BufferGeometry();
@@ -1651,12 +1670,12 @@ const BUILDERS=[
       blending:THREE.AdditiveBlending,depthWrite:false}));
     g.add(st.dustPts);
     st.rocks=[];
-    for(let i=0;i<210;i++){
+    for(let i=0;i<300;i++){
       const r=rock(.07+.4*Math.pow(h3(i,7,22,171),1.8),0x6f6a62,i+50);
       /* the first two dozen scatter high and low: the belt has thickness
          now — looking up from inside the swarm finds more swarm */
-      r.userData.o={th:(h3(i,4,22,173)-.5)*.2,rr:(h3(i,5,22,171)-.5)*22,
-        h:(h3(i,6,22,171)-.5)*(i<24?18:6.5),sp:.00028+.00022*h3(i,8,22,171),
+      r.userData.o={th:(h3(i,4,22,173)-.5)*.46,rr:(h3(i,5,22,171)-.5)*22,
+        h:(h3(i,6,22,171)-.5)*(i<34?18:6.5),sp:.00028+.00022*h3(i,8,22,171),
         rs:(h3(i,9,22,171)-.5)*.6};
       name(r,'Asteroid',st);g.add(r);st.rocks.push(r);
     }
@@ -1831,7 +1850,7 @@ const BUILDERS=[
   facts:[
     'By day it reaches about 430 °C; by night it falls to −180 °C. With almost no air, nothing holds the warmth.',
     'A year on Mercury is just 88 Earth days — the shortest of any planet.',
-    'Turn hard left: the Sun here looks three times wider than from Earth — and eleven times brighter.',
+    'Look left: that brilliant white star is Venus — the brightest thing in Mercury\u2019s night.',
     'Sunlight blasts sodium atoms right off the surface, giving the little planet a faint golden tail — like a comet. Look right to see it stream away.',
     'It is not much bigger than our Moon — and it is slowly shrinking as its iron heart cools.'],
   path:makePath([
@@ -1839,16 +1858,11 @@ const BUILDERS=[
     {u:.6,p:[-2,.9,7.6],l:[-.25,0,0]},
     {u:1,p:[-3,.75,6.8],l:[-.5,0,0]}]),
   build(g,st){
-    sunLight(g,[-36,8,-6],1.25);
+    sunLight(g,[-40,5,10],1.25);
     sunFill(g);
     g.add(name(spin(sphere(1.35,TEX.mercury,{shin:3}),.008),'Mercury',st));
-    /* the cause, at full-left yaw: the Sun, huge and near */
-    const sg=name(sprite(glowTexture('rgba(255,238,205,1)','rgba(255,190,110,.35)'),7),'The Sun, three times wider than from Earth',st);
-    sg.position.set(-20,5,-9);g.add(sg);
-    const sc=sprite(glowTexture('rgba(255,255,255,1)','rgba(255,244,225,.5)'),2);
-    sc.position.copy(sg.position);g.add(sc);
-    /* ...and the consequence, at full-right: Mercury's golden sodium
-       tail, streaming anti-sunward like a slow comet */
+    /* Mercury's golden sodium tail, streaming anti-sunward like a slow
+       comet — the consequence of living this close to a star */
     (function(){
       const N=80,pp=new Float32Array(N*3);
       for(let i=0;i<N;i++){
@@ -1864,11 +1878,9 @@ const BUILDERS=[
         size:.3,sizeAttenuation:true,transparent:true,opacity:.25,
         blending:THREE.AdditiveBlending,depthWrite:false})));
     })();
-    const ve=name(sprite(glowTexture('rgba(245,245,240,1)','rgba(230,230,225,.3)'),.25),'Venus, blazing in the night',st);
-    ve.position.set(3,5.5,-4);g.add(ve);
-    /* the big Sun at left IS the sun here; hide it the moment a flight
-       begins so the real one ahead takes over without a rival */
-    st.update=function(){sg.visible=sc.visible=!TR;};
+    /* the left glance: Venus, the brightest thing in Mercury's night */
+    const ve=name(sprite(glowTexture('rgba(245,245,240,1)','rgba(230,230,225,.35)'),.3),'Venus, blazing in the night',st);
+    ve.position.set(-8,3.5,0);g.add(ve);
   }})],
 
 /* ---- 10 · THE SUN ---- */
@@ -1977,6 +1989,7 @@ const BUILDERS=[
 /* ---- 11 · PLANET SIZES ---- */
 ['Lining up the planets…',()=>addStop({
   name:'Planet Sizes',dur:18,travelNote:false,
+  lookPit:rad(10),   /* a lineup reads sideways — gentle vertical only */
   captions:null,
   path:makePath([{u:0,p:[0,1.4,20],l:[0,.4,0]},{u:1,p:[0,2,26.5],l:[0,.4,0]}]),
   build(g,st){
@@ -2029,7 +2042,7 @@ const BUILDERS=[
 /* ---- 12 · ORBIT MAP ---- */
 ['Drawing the orbit map…',()=>addStop({
   name:'Orbit Map',dur:18,travelNote:false,
-  lookPit:rad(12),   /* a diagram from above: gentle tilts only — never a stare into empty sky */
+  lookPit:rad(7),    /* a diagram from above: the smallest of tilts — the map is the world */
   captions:[
     {t:'The order from the Sun',k:'title'},
     {t:'Mercury · Venus · Earth · Mars · Jupiter · Saturn · Uranus · Neptune',k:'sub'},
@@ -2131,6 +2144,7 @@ const dotsEl=document.getElementById('dots');
 const ctxEl=document.getElementById('ctx');
 const labelsEl=document.getElementById('labels');
 const tipEl=document.getElementById('tip');
+const homeEl=document.getElementById('home');
 const fader=document.getElementById('fader');
 const faderNote=document.getElementById('faderNote');
 const splash=document.getElementById('splash');
@@ -2276,6 +2290,34 @@ function updLabels(st){
     L.el.style.opacity=_v.z<1?1:0;
   }
 }
+/* WAY HOME — when the gaze carries the world off-frame, name it at the
+   nearest edge; the cue is itself the way back (tap → return spring).
+   Off-frame-ness is closed-form: the authored target sits at screen
+   center when dy=dp=0, so the offsets against the half-FOVs tell all. */
+function updHomeCue(){
+  const vH=rad(camera.fov)/2, hH=Math.atan(Math.tan(vH)*camera.aspect);
+  const rx=Math.abs(LOOK.dy)/hH, ry=Math.abs(LOOK.dp)/vH;
+  const on=homeEl.classList.contains('on');
+  const want=!TR&&!trans&&cur>=0&&LOOK.phase!==3&&
+             Math.max(rx,ry)>(on?.95:1.18);   /* hysteresis — no flicker at the edge */
+  if(!want){if(on)homeEl.classList.remove('on');return;}
+  const nm=STOP_NAMES[cur];
+  const side=rx>=ry?(LOOK.dy>0?'e-l':'e-r'):(LOOK.dp<0?'e-t':'e-b');
+  if(homeEl.dataset.k!==side+nm){
+    homeEl.className=side;
+    homeEl.innerHTML=side==='e-l'?'<b>◂</b> '+nm
+                    :side==='e-r'?nm+' <b>▸</b>'
+                    :side==='e-t'?nm+' <b>▴</b>'
+                                 :nm+' <b>▾</b>';
+    homeEl.dataset.k=side+nm;
+    homeEl.setAttribute('aria-label','Bring '+nm+' back into view');
+  }
+  homeEl.classList.add('on');
+}
+homeEl.onclick=function(){
+  if(LOOK.drag||LOOK.phase===1)return;   /* never fight a finger */
+  lookHome();homeEl.classList.remove('on');
+};
 function whereUpdate(){
   whereEl.innerHTML='<b>'+String(cur+1).padStart(2,'0')+'</b> / '+stops.length+' — '+STOP_NAMES[cur];
 }
@@ -2290,7 +2332,7 @@ function activate(i){
      drag under the black (it would re-accumulate past the reset) */
   if(LOOK.drag){lookRelease(0,0);sw=null;}
   lookReset();
-  clearLabels();setPinned('');hideTip();
+  clearLabels();setPinned('');hideTip();homeEl.classList.remove('on');
   cur=i;const st=stops[i];
   closeFacts(false);syncFactsBtn(st);
   audio.setStop(i,1.2);
@@ -2520,13 +2562,14 @@ function wonderTick(now){
 }
 function finishTransit(){
   cometHide();
+  lookHome();          /* arrivals center on the authored framing (a live drag is respected) */
   const j=TR.to;TR=null;
   cur=j;const st=stops[j];
   syncFactsBtn(st);
   if(j===1&&!factsSeen&&!RM)btnFacts.classList.add('nudge');
   audio.arrive(j);
   stopClock=0;capIdx=-1;
-  clearLabels();setPinned('');hideTip();
+  clearLabels();setPinned('');hideTip();homeEl.classList.remove('on');
   if(st.onActivate)st.onActivate();
   buildCtx(st);buildLabels(st);
   dotsUpdate();whereUpdate();
@@ -2856,14 +2899,13 @@ function tick(now){
     if(playing&&!trans&&!factsOpen&&!LOOK.drag&&isFinite(st.dur)&&stopClock>st.dur+.05&&cur<stops.length-1)
       gotoStop(cur+1);
     updLabels(st);
+    updHomeCue();
   }
   /* only the current stop and its neighbors are drawn */
   for(let iv=0;iv<=10;iv++){
     stops[iv].group.visible=(Math.abs(iv-cur)<=1)||(!!TR&&Math.abs(iv-TR.to)<=1);
   }
-  /* at Mercury the stop's own giant Sun stands in — the real tableau
-     ahead would read as a second, dimmer sun. It returns in flight. */
-  if(cur===9&&!TR)stops[10].group.visible=false;
+
   /* belt is heavy — draw it only when nearby */
   const bg=stops[5]&&stops[5].group;
   if(bg)bg.visible=((cur===5)||(!!TR&&TR.to===5));
@@ -3427,6 +3469,7 @@ addEventListener('keydown',function(e){
   else if(e.key==='m'||e.key==='M')btnMusic.click();
   else if(e.key==='f'||e.key==='F')btnSpeed.click();
   else if(e.key==='d'||e.key==='D')openFacts();
+  else if(e.key==='Escape')lookHome();   /* lost the world? ease the gaze home */
 });
 
 /* ================================================================
