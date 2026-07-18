@@ -1125,6 +1125,35 @@ function makeEarthMaterial(sun){
   EARTH_SHADERS.push(m);
   return m;
 }
+/* --- cloud layer shader: shares the surface's sun, so the cloud
+   terminator lands exactly where the ground's does (the scene's fill
+   lights would otherwise leave clouds glowing over the night ocean) --- */
+function makeCloudMaterial(sun){
+  const dir=new THREE.Vector3(sun[0],sun[1],sun[2]).normalize();
+  const m=new THREE.ShaderMaterial({
+    uniforms:{map:{value:TEX.clouds},sunDir:{value:dir},uOp:{value:.95}},
+    transparent:true,depthWrite:false,
+    vertexShader:[
+      'varying vec2 vUv;varying vec3 vN;',
+      'void main(){vUv=uv;vN=normalize(mat3(modelMatrix)*normal);',
+      ' gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}'
+    ].join('\n'),
+    fragmentShader:[
+      'uniform sampler2D map;uniform vec3 sunDir;uniform float uOp;',
+      'varying vec2 vUv;varying vec3 vN;',
+      'void main(){',
+      ' float d=texture2D(map,vUv).g;',
+      ' d=clamp((d-0.05)/0.95,0.0,1.0);',   /* cut the map’s faint ocean haze */
+      ' float ndl=dot(normalize(vN),sunDir);',
+      ' float lit=smoothstep(-0.08,0.35,ndl);',
+      ' vec3 c=mix(vec3(0.015,0.02,0.035),vec3(1.03,1.02,1.0),lit);',
+      ' gl_FragColor=vec4(c,d*uOp);',
+      '}'].join('\n')
+  });
+  m.map=TEX.clouds;          /* lets indexMaterials file it under 'clouds' */
+  m.userData.op=.95;
+  return m;
+}
 /* --- Sun shader: scrolling plasma, limb darkening (or EUV limb brightening) --- */
 function makeSunMaterial(){
   /* boiling photosphere: the NASA map is domain-warped by animated
@@ -1560,7 +1589,7 @@ const BUILDERS=[
     const nf=new THREE.PointLight(0x36455c,.43,120,1);nf.position.set(-28,-8,-20);g.add(nf);
     g.add(name(spin(new THREE.Mesh(new THREE.SphereGeometry(1.5,96,64),makeEarthMaterial([7,3,4])),.02),'Earth',st));
     const cl=spin(new THREE.Mesh(new THREE.SphereGeometry(1.518,96,64),
-      new THREE.MeshPhongMaterial({map:TEX.clouds,transparent:true,depthWrite:false,shininess:1,specular:0x000000})),.026);
+      makeCloudMaterial([7,3,4])),.026);
     cl.renderOrder=1;g.add(cl);
     g.add(rim(1.5,0x6fa8e8,.1));
     const mo=name(spin(sphere(.41,TEX.moon),.012),'The Moon',st);
@@ -1794,8 +1823,8 @@ const BUILDERS=[
   build(g,st){
     sunLight(g,[6,2.5,4],1.2);
     g.add(name(spin(new THREE.Mesh(new THREE.SphereGeometry(.85,96,64),makeEarthMaterial([6,2.5,4])),.02),'Earth',st));
-    const cl=spin(new THREE.Mesh(new THREE.SphereGeometry(.862,40,26),
-      new THREE.MeshPhongMaterial({map:TEX.clouds,transparent:true,depthWrite:false,shininess:1,specular:0x000000})),.026);
+    const cl=spin(new THREE.Mesh(new THREE.SphereGeometry(.862,96,64),
+      makeCloudMaterial([6,2.5,4])),.026);
     cl.renderOrder=1;g.add(cl);
     g.add(rim(.85,0x6fa8e8,.1));
   },
@@ -2257,7 +2286,10 @@ function tick(now){
       const tw=(ud.tw&&!RM)?1+ud.tw.a*Math.sin(GT*ud.tw.o+ud.tw.p):1;
       cm.material.opacity=ud.baseOp*(1-(ud.fadeK||.62)*window.__kfs)*tw;
     }
-    for(const cm of (MATS.clouds||[]))cm.opacity=(cm.userData&&cm.userData.op||.95)*(1-.5*window.__kfc);
+    for(const cm of (MATS.clouds||[])){
+      const vo=(cm.userData&&cm.userData.op||.95)*(1-.5*window.__kfc);
+      if(cm.uniforms)cm.uniforms.uOp.value=vo;else cm.opacity=vo;
+    }
   }
   const gs=window.__globalSun;
   if(gs){const vis=(cur>=0&&cur<10);gs.visible=vis;gs.userData.core.visible=vis;
@@ -2457,7 +2489,12 @@ async function applyEmbedded(){
       const n=await loadTex(EMB.night,true,2048);
       if(n)for(const em of EARTH_SHADERS)em.uniforms.nightMap.value=n;
       const cl=await loadTex(EMB.clouds,true,2048);
-      if(cl)for(const m of mats('clouds')){m.map=cl;m.alphaMap=cl;m.opacity=.95;m.needsUpdate=true;}
+      if(cl)for(const m of mats('clouds')){
+        m.map=cl;
+        if(m.uniforms)m.uniforms.map.value=cl;
+        else{m.alphaMap=cl;m.opacity=.95;}
+        m.needsUpdate=true;
+      }
     })(),
     swap('venus',EMB.venus),
     (async function(){
