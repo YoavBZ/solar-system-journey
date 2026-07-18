@@ -1906,14 +1906,15 @@ function updateLook(dt){
     LOOK.dp=Math.max(-LOOK_PIT_MAX,Math.min(LOOK_PIT_MAX,LOOK.dp));
     LOOK.ty=LOOK.dy;LOOK.tp=LOOK.dp;
     /* paused = the visitor's "let me look": hold until play/travel.
-       reduced motion: never a timer — only explicit actions send it home */
-    if(performance.now()>=LOOK.holdUntil&&(playing||TR)&&!RM)LOOK.phase=3;
+       reduced motion: never a timer — but an explicit lookHome()
+       (play, travel) always sends it home, RM and paused included */
+    if(LOOK.holdUntil===0||(performance.now()>=LOOK.holdUntil&&(playing||TR)&&!RM))LOOK.phase=3;
     return;
   }
   const w=LOOK_W_RET;                                   /* critically damped ease home */
   LOOK.vy+=(-w*w*LOOK.dy-2*w*LOOK.vy)*dt;LOOK.dy+=LOOK.vy*dt;
   LOOK.vp+=(-w*w*LOOK.dp-2*w*LOOK.vp)*dt;LOOK.dp+=LOOK.vp*dt;
-  if(Math.abs(LOOK.dy)+Math.abs(LOOK.dp)<1e-4&&Math.abs(LOOK.vy)+Math.abs(LOOK.vp)<1e-3){
+  if(Math.abs(LOOK.dy)+Math.abs(LOOK.dp)<1.5e-3&&Math.abs(LOOK.vy)+Math.abs(LOOK.vp)<4e-3){
     LOOK.dy=LOOK.dp=LOOK.vy=LOOK.vp=LOOK.ty=LOOK.tp=0;LOOK.phase=0;
   }
 }
@@ -1989,7 +1990,10 @@ function dotsUpdate(){
 function hideTip(){tipEl.classList.remove('on');clearTimeout(tipT);}
 function activate(i){
   if(cur>10)stops[cur].group.visible=false;
-  lookReset();         /* fader jumps land exactly on the authored framing */
+  /* fader jumps land exactly on the authored framing: end any live
+     drag under the black (it would re-accumulate past the reset) */
+  if(LOOK.drag){lookRelease(0,0);sw=null;}
+  lookReset();
   clearLabels();setPinned('');hideTip();
   cur=i;const st=stops[i];
   closeFacts(false);syncFactsBtn(st);
@@ -2032,8 +2036,10 @@ function transitTo(j){
     {u:1,p:entryP,l:entryL}]);
   /* seed from the AUTHORED gaze (lastLook), not the rendered one:
      the rendered direction includes any free-look offset, and baking
-     it into the yaw arrays would double-count it at transit start */
-  const f0v=new THREE.Vector3(lastLook[0]-p0[0],lastLook[1]-p0[1],lastLook[2]-p0[2]).normalize();
+     it into the yaw arrays would double-count it at transit start.
+     (Before the first tick lastLook is still unset — fall back.) */
+  const f0v=new THREE.Vector3(lastLook[0]-p0[0],lastLook[1]-p0[1],lastLook[2]-p0[2]);
+  if(f0v.lengthSq()<1e-6)camera.getWorldDirection(f0v);else f0v.normalize();
   const f1v=new THREE.Vector3(entryL[0]-entryP[0],entryL[1]-entryP[1],entryL[2]-entryP[2]).normalize();
   const yaw0=Math.atan2(f0v.x,-f0v.z), pit0=Math.asin(Math.max(-1,Math.min(1,f0v.y)));
   let yaw1=Math.atan2(f1v.x,-f1v.z);
@@ -2222,7 +2228,7 @@ skyEl.addEventListener('pointerdown',function(e){
    swipe (release decides, as always); a tap stays a tap; anything else
    ≥ the tap radius becomes look — a child's smear always maps to the
    safe, reversible action */
-skyEl.addEventListener('pointermove',function(e){
+addEventListener('pointermove',function(e){
   if(!sw||e.pointerId!==sw.id||sw.dead)return;
   const now2=performance.now();
   if(sw.mode==='pend'){
@@ -2248,12 +2254,15 @@ skyEl.addEventListener('pointermove',function(e){
   lookClampT();
   sw.lx=e.clientX;sw.ly=e.clientY;
   sw.hist.push({t:now2,x:e.clientX,y:e.clientY});
-  if(sw.hist.length>6)sw.hist.shift();
+  /* trim by AGE, not count: the release-velocity window needs ~160 ms
+     of history at any refresh rate (a pause then a lift is not a flick) */
+  while(sw.hist.length>1&&now2-sw.hist[0].t>160)sw.hist.shift();
 });
 function beginLook(e,now2){
   sw.mode='look';
   hideTip();
-  LOOK.drag={id:e.pointerId};LOOK.phase=1;LOOK.used=true;
+  LOOK.ty=LOOK.dy;LOOK.tp=LOOK.dp;   /* catch the gaze where it is — no snap to a stale target */
+  LOOK.drag=true;LOOK.phase=1;LOOK.used=true;
   document.body.classList.add('dragging');
   sw.lx=e.clientX;sw.ly=e.clientY;sw.hist=[{t:now2,x:e.clientX,y:e.clientY}];
 }
@@ -2270,13 +2279,16 @@ function endLookDrag(g,e){
   }
   lookRelease(vy,vp);
 }
-skyEl.addEventListener('pointercancel',function(e){
+/* releases listen on the window, not the canvas: if pointer capture
+   didn't take and the button lifts over the dots or a control, the
+   gesture must still end — a stuck drag would hold the tour clock */
+addEventListener('pointercancel',function(e){
   if(sw&&e.pointerId===sw.id){           /* OS stole the gesture */
     if(LOOK.drag&&sw.mode==='look')lookRelease(0,0);
     sw=null;
   }
 });
-skyEl.addEventListener('pointerup',function(e){
+addEventListener('pointerup',function(e){
   if(!sw||e.pointerId!==sw.id)return;
   const g=sw;sw=null;
   if(g.mode==='look'){endLookDrag(g,e);return;}
@@ -2409,7 +2421,7 @@ function tick(now){
         let cp=st.captions[idx];
         /* one quiet lesson, once per session, at Uranus — skipped for
            anyone who has already looked around, and on pointerless TVs */
-        if(cur===2&&idx===1&&!LOOK.used&&!LOOK.nudged&&!NOPOINTER){
+        if(st.name==='Uranus'&&idx===1&&!LOOK.used&&!LOOK.nudged&&!NOPOINTER){
           LOOK.nudged=true;cp={t:'you can look around — just drag the sky',k:'note'};
         }
         showCap(cp);}
@@ -2849,7 +2861,8 @@ const audio={ctx:null,on:false,master:null,verb:null,lp:null,voices:null,wgain:n
 };
 document.addEventListener('visibilitychange',function(){
   if(document.hidden){
-    if(LOOK.drag){lookRelease(0,0);sw=null;}  /* never leave a drag stuck off-center */
+    if(LOOK.drag)lookRelease(0,0);
+    sw=null;                            /* never leave any gesture stuck across a tab-hide */
     /* an ambient journey should fall silent in the background:
        fast fade, then suspend the context entirely */
     if(audio.ctx&&audio.ctx.state==='running'){
