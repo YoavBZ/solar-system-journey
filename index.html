@@ -34,6 +34,7 @@
   body{-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none;
     -webkit-touch-callout:none}
   #sky{position:fixed;inset:0;display:block;touch-action:none}
+  body.dragging #sky{cursor:grabbing}
   body::after{content:"";position:fixed;inset:0;pointer-events:none;
     background:radial-gradient(ellipse at center, transparent 55%, rgba(0,0,0,.5) 100%)}
 
@@ -304,7 +305,7 @@
     <button class="rnd" id="btnMusic" title="Gentle music (m)" aria-label="Toggle music"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M9 17.2V6.6l9-1.8v10.1a2.9 2.9 0 1 0 1.2 2.36V3.3L7.8 5.5v9.4A2.9 2.9 0 1 0 9 17.2z"/></svg></button>
   </div>
 </div>
-<div id="hintkeys">← → travel · space pause · d did you know · f speed · hover a world for its name</div>
+<div id="hintkeys">← → travel · space pause · d did you know · f speed · drag the sky to look around</div>
 <div id="credit"></div>
 
 <aside id="facts" role="dialog" aria-modal="false" aria-labelledby="factsKick" tabindex="-1">
@@ -328,7 +329,7 @@
   <div class="sub">Neptune → the Sun &nbsp;·&nbsp; no narration — just space</div>
   <button id="begin">Begin the journey</button>
   <div id="musicRow"><input type="checkbox" id="musicChk" checked><label for="musicChk">Gentle instrumental music</label></div>
-  <div class="keys">Sit back — the tour plays itself. Use ← → or the dots to travel freely. Press d for field notes at any stop.</div>
+  <div class="keys">Sit back — the tour plays itself. Use ← → or the dots to travel. Drag the sky to look around. Press d for field notes.</div>
   <div id="loadmsg"></div>
 </div>
 
@@ -1857,6 +1858,79 @@ const splash=document.getElementById('splash');
 
 let cur=-1, stopClock=0, capIdx=-1, playing=true, trans=false;
 let TR=null, GT=0, lastLook=[0,0,0];
+
+/* ================================================================
+   FREE-LOOK — turn your head; the train keeps going.
+   A yaw/pitch offset composed onto the authored gaze each frame.
+   The offset never touches camera position, lastLook, or any
+   authored data: every rendered frame is authored ∘ offset.
+================================================================ */
+const LOOK={ty:0,tp:0,   /* target offsets (radians) — written by input   */
+            dy:0,dp:0,   /* displayed offsets — what composeLook renders  */
+            vy:0,vp:0,   /* velocities for coast + return spring          */
+            drag:null,   /* live drag {id} or null                        */
+            phase:0,     /* 0 idle · 1 drag · 2 hold/coast · 3 ease home  */
+            holdUntil:0,used:false,nudged:false};
+const LOOK_YAW_MAX=rad(60),LOOK_PIT_MAX=rad(35);   /* head-turn range at a stop */
+const LOOK_YAW_TR=rad(30),LOOK_PIT_TR=rad(20);     /* tighter out the window in flight */
+const LOOK_PIT_TOTAL=rad(86);                      /* total pitch: no pole flip at the Orbit Map */
+const LOOK_TAU_DRAG=.06,LOOK_TAU_COAST=.18;        /* follow lag · release settle */
+const LOOK_HOLD_MS=1800,LOOK_W_RET=3.5,LOOK_V_MAX=2;
+const NOPOINTER=matchMedia('(any-pointer:none)').matches;   /* TVs: feature dormant */
+function lookClampT(){
+  const my=TR?LOOK_YAW_TR:LOOK_YAW_MAX,mp=TR?LOOK_PIT_TR:LOOK_PIT_MAX;
+  LOOK.ty=Math.max(-my,Math.min(my,LOOK.ty));
+  LOOK.tp=Math.max(-mp,Math.min(mp,LOOK.tp));
+}
+function lookRelease(vy,vp){
+  LOOK.drag=null;document.body.classList.remove('dragging');
+  LOOK.vy=RM?0:Math.max(-LOOK_V_MAX,Math.min(LOOK_V_MAX,vy||0));
+  LOOK.vp=RM?0:Math.max(-LOOK_V_MAX,Math.min(LOOK_V_MAX,vp||0));
+  LOOK.holdUntil=performance.now()+LOOK_HOLD_MS;
+  LOOK.phase=(LOOK.dy||LOOK.dp||LOOK.vy||LOOK.vp)?2:0;
+}
+function lookHome(){if(LOOK.phase===2)LOOK.holdUntil=0;}   /* explicit action: ease home now */
+function lookReset(){LOOK.ty=LOOK.tp=LOOK.dy=LOOK.dp=LOOK.vy=LOOK.vp=0;LOOK.phase=LOOK.drag?1:0;}
+function updateLook(dt){
+  if(LOOK.phase===0)return;
+  if(LOOK.phase===1){                                   /* follow the finger, film-head lag */
+    const k=1-Math.exp(-dt/LOOK_TAU_DRAG);
+    LOOK.dy+=(LOOK.ty-LOOK.dy)*k;LOOK.dp+=(LOOK.tp-LOOK.dp)*k;
+    return;
+  }
+  if(LOOK.phase===2){                                   /* brief coast, then hold the gaze */
+    const g=Math.exp(-dt/LOOK_TAU_COAST);
+    LOOK.vy*=g;LOOK.vp*=g;
+    LOOK.dy+=LOOK.vy*dt;LOOK.dp+=LOOK.vp*dt;
+    LOOK.dy=Math.max(-LOOK_YAW_MAX,Math.min(LOOK_YAW_MAX,LOOK.dy));
+    LOOK.dp=Math.max(-LOOK_PIT_MAX,Math.min(LOOK_PIT_MAX,LOOK.dp));
+    LOOK.ty=LOOK.dy;LOOK.tp=LOOK.dp;
+    /* paused = the visitor's "let me look": hold until play/travel.
+       reduced motion: never a timer — only explicit actions send it home */
+    if(performance.now()>=LOOK.holdUntil&&(playing||TR)&&!RM)LOOK.phase=3;
+    return;
+  }
+  const w=LOOK_W_RET;                                   /* critically damped ease home */
+  LOOK.vy+=(-w*w*LOOK.dy-2*w*LOOK.vy)*dt;LOOK.dy+=LOOK.vy*dt;
+  LOOK.vp+=(-w*w*LOOK.dp-2*w*LOOK.vp)*dt;LOOK.dp+=LOOK.vp*dt;
+  if(Math.abs(LOOK.dy)+Math.abs(LOOK.dp)<1e-4&&Math.abs(LOOK.vy)+Math.abs(LOOK.vp)<1e-3){
+    LOOK.dy=LOOK.dp=LOOK.vy=LOOK.vp=LOOK.ty=LOOK.tp=0;LOOK.phase=0;
+  }
+}
+/* compose the user's head-turn onto the final authored look point.
+   Decomposed fresh every frame in world yaw/pitch (the engine's own
+   spherical convention), so roll can never accumulate and release
+   always returns exactly onto the film — comet shots included. */
+function composeLook(px,py,pz,lx,ly,lz){
+  if(LOOK.dy===0&&LOOK.dp===0){camera.lookAt(lx,ly,lz);return;}
+  const dx=lx-px,dyv=ly-py,dz=lz-pz,len=Math.hypot(dx,dyv,dz)||1;
+  const yawA=Math.atan2(dx/len,-dz/len);
+  const pitA=Math.asin(Math.max(-1,Math.min(1,dyv/len)));
+  const yaw=yawA+LOOK.dy*Math.cos(pitA);   /* head-turn authority shrinks near the zenith */
+  const pit=Math.max(-LOOK_PIT_TOTAL,Math.min(LOOK_PIT_TOTAL,pitA+LOOK.dp));
+  const cp=Math.cos(pit);
+  camera.lookAt(px+Math.sin(yaw)*cp*60,py+Math.sin(pit)*60,pz-Math.cos(yaw)*cp*60);
+}
 let factsOpen=false, factIdx=0, factsSeen=false;
 const RM=matchMedia('(prefers-reduced-motion: reduce)').matches;
 
@@ -1915,6 +1989,7 @@ function dotsUpdate(){
 function hideTip(){tipEl.classList.remove('on');clearTimeout(tipT);}
 function activate(i){
   if(cur>10)stops[cur].group.visible=false;
+  lookReset();         /* fader jumps land exactly on the authored framing */
   clearLabels();setPinned('');hideTip();
   cur=i;const st=stops[i];
   closeFacts(false);syncFactsBtn(st);
@@ -1955,7 +2030,10 @@ function transitTo(j){
     {u:dA/DT,p:P1,l:[A[0],A[1],A[2]]},
     {u:(dA+dB)/DT,p:P2,l:[A[0],A[1],A[2]]},
     {u:1,p:entryP,l:entryL}]);
-  const f0v=new THREE.Vector3();camera.getWorldDirection(f0v);
+  /* seed from the AUTHORED gaze (lastLook), not the rendered one:
+     the rendered direction includes any free-look offset, and baking
+     it into the yaw arrays would double-count it at transit start */
+  const f0v=new THREE.Vector3(lastLook[0]-p0[0],lastLook[1]-p0[1],lastLook[2]-p0[2]).normalize();
   const f1v=new THREE.Vector3(entryL[0]-entryP[0],entryL[1]-entryP[1],entryL[2]-entryP[2]).normalize();
   const yaw0=Math.atan2(f0v.x,-f0v.z), pit0=Math.asin(Math.max(-1,Math.min(1,f0v.y)));
   let yaw1=Math.atan2(f1v.x,-f1v.z);
@@ -1995,6 +2073,7 @@ function transitTo(j){
   audio.setStop(j,TR.dur*.38);   /* harmony glides to the new key mid-flight */
   if((cur===2&&j===3)||(cur===3&&j===2))cometArm();
   closeFacts(false);
+  lookHome();          /* not dragging? gaze drifts home in flight — arrivals stay authored */
   capEl.classList.remove('show');capIdx=-1;hideTip();
 }
 /* ---- a passing comet, seen on the flight between Uranus and Saturn ---- */
@@ -2088,6 +2167,7 @@ function gotoStop(i,instant){
 const ray=new THREE.Raycaster();const ndc=new THREE.Vector2();
 addEventListener('pointermove',function(e){
   if(e.pointerType&&e.pointerType!=='mouse')return;
+  if(LOOK.drag)return hideTip();          /* no tooltip churn mid-drag */
   if(cur<0||trans||TR)return;
   ndc.x=(e.clientX/innerWidth)*2-1;ndc.y=-(e.clientY/innerHeight)*2+1;
   ray.setFromCamera(ndc,camera);
@@ -2121,19 +2201,86 @@ function tapHit(x,y){
   return best;
 }
 skyEl.addEventListener('pointerdown',function(e){
-  if(e.pointerType==='mouse'||!splash.classList.contains('off'))return;
-  if(sw){sw.dead=true;return;}            /* second finger: not a gesture */
+  if(!splash.classList.contains('off'))return;
+  if(e.pointerType==='mouse'){
+    /* desktop: left-button drag on the sky is free-look */
+    if(e.button!==0||cur<0||sw)return;
+    sw={id:e.pointerId,x0:e.clientX,y0:e.clientY,t0:performance.now(),
+        mouse:true,mode:'pend',lx:e.clientX,ly:e.clientY,hist:null,dead:false};
+    try{skyEl.setPointerCapture(e.pointerId);}catch(_){}
+    return;
+  }
+  if(sw){sw.dead=true;                    /* second finger: not a gesture */
+    if(LOOK.drag&&sw.mode==='look')lookRelease(0,0);
+    return;}
   sw={id:e.pointerId,x0:e.clientX,y0:e.clientY,t0:performance.now(),
+      mode:'pend',lx:e.clientX,ly:e.clientY,hist:null,
       dead:(e.clientX<24||e.clientX>innerWidth-24)}; /* iOS edge-swipe zones */
   try{skyEl.setPointerCapture(e.pointerId);}catch(_){}
 });
+/* the decide window: a stroke that is promptly horizontal is a travel
+   swipe (release decides, as always); a tap stays a tap; anything else
+   ≥ the tap radius becomes look — a child's smear always maps to the
+   safe, reversible action */
+skyEl.addEventListener('pointermove',function(e){
+  if(!sw||e.pointerId!==sw.id||sw.dead)return;
+  const now2=performance.now();
+  if(sw.mode==='pend'){
+    const ax=Math.abs(e.clientX-sw.x0),ay=Math.abs(e.clientY-sw.y0);
+    const d=Math.hypot(e.clientX-sw.x0,e.clientY-sw.y0),el=now2-sw.t0;
+    if(d<(sw.mouse?4:12))return;                       /* still a click/tap */
+    if(!sw.mouse&&el<=180&&ax>=1.6*ay){sw.mode='swipe';return;}
+    if(cur<0){sw.mode='swipe';return;}
+    beginLook(e,now2);
+    return;
+  }
+  if(sw.mode==='swipe'){
+    /* a swipe candidate that is provably too slow to ever qualify as
+       travel demotes to look mid-stroke: a slow smear always looks */
+    const el=now2-sw.t0,ax=Math.abs(e.clientX-sw.x0);
+    if(el>280&&ax/el<.35)beginLook(e,now2);
+    return;
+  }
+  if(sw.mode!=='look')return;
+  const k=rad(camera.fov)/innerHeight;   /* grab the sky: the star under the finger stays under it */
+  LOOK.ty-=(e.clientX-sw.lx)*k;
+  LOOK.tp+=(e.clientY-sw.ly)*k;
+  lookClampT();
+  sw.lx=e.clientX;sw.ly=e.clientY;
+  sw.hist.push({t:now2,x:e.clientX,y:e.clientY});
+  if(sw.hist.length>6)sw.hist.shift();
+});
+function beginLook(e,now2){
+  sw.mode='look';
+  hideTip();
+  LOOK.drag={id:e.pointerId};LOOK.phase=1;LOOK.used=true;
+  document.body.classList.add('dragging');
+  sw.lx=e.clientX;sw.ly=e.clientY;sw.hist=[{t:now2,x:e.clientX,y:e.clientY}];
+}
+function endLookDrag(g,e){
+  if(!LOOK.drag)return;
+  let vy=0,vp=0;
+  const h=g&&g.hist;
+  if(e&&h&&h.length>=2){
+    let a=h[0];const b=h[h.length-1];
+    for(let q=h.length-2;q>=0;q--)if(b.t-h[q].t>=80){a=h[q];break;}
+    const dt2=(b.t-a.t)/1000;
+    if(dt2>.02){const k=rad(camera.fov)/innerHeight;
+      vy=-(b.x-a.x)*k/dt2;vp=(b.y-a.y)*k/dt2;}
+  }
+  lookRelease(vy,vp);
+}
 skyEl.addEventListener('pointercancel',function(e){
-  if(sw&&e.pointerId===sw.id)sw=null;     /* OS stole the gesture */
+  if(sw&&e.pointerId===sw.id){           /* OS stole the gesture */
+    if(LOOK.drag&&sw.mode==='look')lookRelease(0,0);
+    sw=null;
+  }
 });
 skyEl.addEventListener('pointerup',function(e){
   if(!sw||e.pointerId!==sw.id)return;
   const g=sw;sw=null;
-  if(g.dead)return;
+  if(g.mode==='look'){endLookDrag(g,e);return;}
+  if(g.dead||g.mouse)return;
   const dx=e.clientX-g.x0,dy=e.clientY-g.y0,el=performance.now()-g.t0;
   const ax=Math.abs(dx),ay=Math.abs(dy);
   const swipe=(el<=700&&ax>=Math.max(48,innerWidth*.12)&&ax>=1.6*ay)||
@@ -2184,6 +2331,7 @@ function tick(now){
      so smoothing and optical-flow rates keep their physical meaning */
   const jdt=dt*SPD;
   if(cur<0)return;
+  updateLook(dt);              /* real dt: look feel ignores the speed control */
   if(playing)GT+=jdt;
   /* every visible scene keeps living */
   for(let i2=0;i2<stops.length;i2++){const s2=stops[i2];
@@ -2228,13 +2376,14 @@ function tick(now){
         lz+=((c.pos[2]+gz/gl*60)-lz)*w;
       }
     }
-    camera.lookAt(lx,ly,lz);
+    composeLook(c.pos[0],c.pos[1],c.pos[2],lx,ly,lz);
     lastLook=[lx,ly,lz];
     if(TR.t>=TR.dur)finishTransit();
   }else{
     const st=stops[cur];
-    /* field notes hold the itinerary clock; the world keeps living */
-    if(playing&&!trans&&!factsOpen)stopClock+=jdt;
+    /* field notes — and a finger on the sky — hold the itinerary clock;
+       the world keeps living */
+    if(playing&&!trans&&!factsOpen&&!LOOK.drag)stopClock+=jdt;
     const u=st.camDur?Math.min(stopClock/st.camDur,1):0;
     const c=st.path(u);
     let cpx=c.pos[0],cpy=c.pos[1],cpz=c.pos[2];
@@ -2249,16 +2398,23 @@ function tick(now){
     const A=st.anchor||[0,0,0];
     camera.position.set(cpx+A[0],cpy+A[1],cpz+A[2]);
     lastLook=[c.look[0]+A[0],c.look[1]+A[1],c.look[2]+A[2]];
-    camera.lookAt(lastLook[0],lastLook[1],lastLook[2]);
+    composeLook(cpx+A[0],cpy+A[1],cpz+A[2],lastLook[0],lastLook[1],lastLook[2]);
     if(st.captions){
       let idx;
       if(st.capTimes){idx=0;
         for(let q=0;q<st.capTimes.length;q++)if(stopClock>=st.capTimes[q])idx=q;
         idx=Math.min(idx,st.captions.length-1);
       }else idx=Math.min(Math.floor(stopClock/st.slot),st.captions.length-1);
-      if(idx!==capIdx){capIdx=idx;showCap(st.captions[idx]);}
+      if(idx!==capIdx){capIdx=idx;
+        let cp=st.captions[idx];
+        /* one quiet lesson, once per session, at Uranus — skipped for
+           anyone who has already looked around, and on pointerless TVs */
+        if(cur===2&&idx===1&&!LOOK.used&&!LOOK.nudged&&!NOPOINTER){
+          LOOK.nudged=true;cp={t:'you can look around — just drag the sky',k:'note'};
+        }
+        showCap(cp);}
     }
-    if(playing&&!trans&&!factsOpen&&isFinite(st.dur)&&stopClock>st.dur+.05&&cur<stops.length-1)
+    if(playing&&!trans&&!factsOpen&&!LOOK.drag&&isFinite(st.dur)&&stopClock>st.dur+.05&&cur<stops.length-1)
       gotoStop(cur+1);
     updLabels(st);
   }
@@ -2693,6 +2849,7 @@ const audio={ctx:null,on:false,master:null,verb:null,lp:null,voices:null,wgain:n
 };
 document.addEventListener('visibilitychange',function(){
   if(document.hidden){
+    if(LOOK.drag){lookRelease(0,0);sw=null;}  /* never leave a drag stuck off-center */
     /* an ambient journey should fall silent in the background:
        fast fade, then suspend the context entirely */
     if(audio.ctx&&audio.ctx.state==='running'){
@@ -2791,7 +2948,8 @@ function setSpeed(v){SPD=v;btnSpeed.textContent=v+'×';btnSpeed.classList.toggle
 btnSpeed.onclick=function(){setSpeed(SPD===1?2:SPD===2?4:1);};
 const SVG_PAUSE='<svg viewBox="0 0 24 24" fill="currentColor"><path d="M7.5 5h3.2v14H7.5zM13.3 5h3.2v14h-3.2z"/></svg>';
 const SVG_PLAY='<svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.2v13.6L19 12z"/></svg>';
-function setPlaying(p){playing=p;btnPlay.innerHTML=p?SVG_PAUSE:SVG_PLAY;btnPlay.classList.toggle('active',!p);}
+function setPlaying(p){playing=p;btnPlay.innerHTML=p?SVG_PAUSE:SVG_PLAY;btnPlay.classList.toggle('active',!p);
+  if(p)lookHome();}    /* pressing play reclaims a gaze held while paused */
 document.getElementById('btnPrev').onclick=function(){gotoStop(cur-1);};
 document.getElementById('btnNext').onclick=function(){gotoStop(cur+1);};
 btnPlay.onclick=function(){setPlaying(!playing);};
@@ -2817,8 +2975,8 @@ addEventListener('keydown',function(e){
 ================================================================ */
 const loadmsg=document.getElementById('loadmsg');
 if(COARSE){
-  document.getElementById('hintkeys').textContent='swipe to travel · tap a world for its name · ✦ facts';
-  document.querySelector('#splash .keys').textContent='Sit back — the tour plays itself. Swipe to travel freely. Tap ✦ for field notes.';
+  document.getElementById('hintkeys').textContent='swipe to travel · drag to look around · tap a world for its name · ✦ facts';
+  document.querySelector('#splash .keys').textContent='Sit back — the tour plays itself. Swipe to travel, drag the sky to look around. Tap ✦ for field notes.';
 }
 let started=false;
 let prepP=null;
@@ -2861,7 +3019,9 @@ async function prepare(){
   scene.add(gsun);scene.add(gcore);
   window.__globalSun=gsun;
   buildComet();
-  window.__J={scene:scene,stops:stops,camera:camera,goto:gotoStop,audio:audio,st:function(){return{cur:cur,TR:!!TR,stopClock:stopClock};}};
+  window.__J={scene:scene,stops:stops,camera:camera,goto:gotoStop,audio:audio,look:LOOK,
+    dir:function(){const v=new THREE.Vector3();camera.getWorldDirection(v);return[v.x,v.y,v.z];},
+    st:function(){return{cur:cur,TR:!!TR,stopClock:stopClock,look:{dy:LOOK.dy,dp:LOOK.dp,phase:LOOK.phase}};}};
   for(let i=0;i<stops.length;i++){
     const d=document.createElement('button');
     d.className='dot';d.title=STOP_NAMES[i];d.setAttribute('aria-label',STOP_NAMES[i]);

@@ -19,7 +19,8 @@ Each stop plays out as a slow camera move with film-style captions. Let it run a
 - **Living scenes.** Storm bands on Jupiter, Saturn's rings with orbiting moons, a dense asteroid belt, city lights on Earth's night side, solar prominences, a passing comet — plus a false-color science view of the Sun.
 - **A deep sky.** Thousands of layered stars, the Milky Way with its dust lanes, and a handful of distant galaxies.
 - **Field notes.** An opt-in "Did you know?" layer: three or four curated facts per stop, one at a time, in a quiet card that holds the tour while you read.
-- **Made for touch too.** Swipe to travel, tap a world for its name, and a safe-area-aware layout.
+- **Free-look.** Drag the sky — mouse or finger — to look around while the camera keeps riding its authored path; let go and the gaze drifts back to the film. Works at every stop and even mid-flight.
+- **Made for touch too.** Swipe to travel, drag to look, tap a world for its name, and a safe-area-aware layout.
 - **Accessible by design.** Keyboard navigation throughout, hover any world for its name, and `prefers-reduced-motion` starts the tour paused so visitors move at their own pace.
 
 ## Controls
@@ -32,6 +33,7 @@ Each stop plays out as a slow camera move with film-style captions. Let it run a
 | <kbd>f</kbd> | Cycle travel speed (1× / 2× / 4×) |
 | <kbd>m</kbd> | Toggle music |
 | Dots (top center) | Jump to any stop |
+| Drag the sky | Look around from where you are — release to drift back |
 | Mouse hover / tap | Name the world under the cursor or finger |
 | Swipe left / right | Travel between stops (touch screens) |
 
