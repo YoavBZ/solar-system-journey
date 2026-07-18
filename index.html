@@ -504,13 +504,13 @@ function nebulaTexture(seed,core,fringe){
     const R2=26+40*h3(k,3,seed,19);
     const col=(k%3===0)?fringe:core;
     const g=x.createRadialGradient(px,py,0,px,py,R2);
-    g.addColorStop(0,'rgba('+col+','+(.04+.05*h3(k,4,seed,19)).toFixed(3)+')');
+    g.addColorStop(0,'rgba('+col+','+(.07+.07*h3(k,4,seed,19)).toFixed(3)+')');
     g.addColorStop(1,'rgba('+col+',0)');
     x.fillStyle=g;x.beginPath();x.arc(px,py,R2,0,TAU);x.fill();
   }
   for(let k=0;k<4;k++){
     const g=x.createRadialGradient(128,128,0,128,128,120+20*k);
-    g.addColorStop(0,'rgba('+fringe+',.018)');g.addColorStop(1,'rgba('+fringe+',0)');
+    g.addColorStop(0,'rgba('+fringe+',.03)');g.addColorStop(1,'rgba('+fringe+',0)');
     x.fillStyle=g;x.beginPath();x.arc(128,128,120+20*k,0,TAU);x.fill();
   }
   return texFrom(c);
@@ -996,8 +996,11 @@ function starPositions(N,seed){
   }
   /* two painted nebulae — clouds where stars are born */
   const NEB=[
-    {seed:5,core:'255,190,140',fringe:'200,90,80',th:5.75,ph:1.35,sx:112,sy:80,o:.22,nm:'A nebula — a cloud where stars are born'},
-    {seed:9,core:'150,200,255',fringe:'90,120,200',th:3.75,ph:1.90,sx:132,sy:84,o:.17,nm:'A cold drift of gas and dust'}];
+    {seed:5,core:'255,190,140',fringe:'200,90,80',th:5.75,ph:1.35,sx:150,sy:100,o:.24,nm:'A nebula — a cloud where stars are born'},
+    {seed:9,core:'150,200,255',fringe:'90,120,200',th:3.75,ph:1.90,sx:170,sy:105,o:.19,nm:'A cold drift of gas and dust'},
+    {seed:13,core:'255,150,180',fringe:'180,80,140',th:4.60,ph:.75,sx:150,sy:95,o:.16,nm:'A rose nebula, glowing where new suns wake'},
+    {seed:17,core:'160,235,225',fringe:'80,170,160',th:2.95,ph:1.60,sx:140,sy:80,o:.15,nm:'A green veil of glowing oxygen'},
+    {seed:21,core:'190,160,255',fringe:'120,90,220',th:5.30,ph:2.25,sx:125,sy:88,o:.14,nm:'A violet drift, lit from within'}];
   for(const nb of NEB){
     const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:nebulaTexture(nb.seed,nb.core,nb.fringe),
       transparent:true,opacity:nb.o,blending:THREE.AdditiveBlending,depthWrite:false}));
@@ -1446,20 +1449,20 @@ const BUILDERS=[
     'Neptune was discovered with math before any telescope saw it: something unseen was tugging at Uranus, and astronomers worked out where to look.',
     'Triton orbits backwards — the only large moon that does. It may be a visitor, captured long ago from the icy edge of the system.'],
   path:makePath([
-    {u:0,p:[0,.7,12],l:[0,0,0]},
-    {u:.55,p:[2.6,.9,7.4],l:[.3,0,0]},
-    {u:1,p:[3.6,1.05,6.4],l:[.35,0,0]}]),
+    {u:0,p:[0,.9,15.6],l:[0,0,0]},
+    {u:.55,p:[3.4,1.2,9.6],l:[.3,0,0]},
+    {u:1,p:[4.7,1.4,8.3],l:[.35,0,0]}]),
   build(g,st){
     sunLight(g,[8,3,6]);
     sunFill(g);
     const n=name(spin(sphere(2,TEX.neptune),.02),'Neptune',st);
     n.rotation.z=rad(-28);g.add(n);g.add(rim(2,0x4d7fd0,.12));
-    const tr=name(spin(sphere(.11,TEX.triton),.04),'Triton',st);
+    const tr=name(spin(sphere(.14,TEX.triton,{mat:{color:0xe8d9c8}}),.04),'Triton',st);
     tr.position.set(5.2,.9,-2.5);g.add(tr);
     /* the rest of the retinue, scattered around your head */
-    const pr=name(spin(rock(.07,0x8a8f96,53),.06),'Proteus',st);
+    const pr=name(spin(rock(.09,0x8a8f96,53),.06),'Proteus',st);
     pr.position.set(-4.5,-.9,2.5);g.add(pr);
-    const ne=name(spin(sphere(.04,TEX.triton),.05),'Nereid',st);
+    const ne=name(spin(sphere(.055,TEX.moon,{mat:{color:0xdde4ea}}),.05),'Nereid',st);
     ne.position.set(0,6,-3);g.add(ne);
     const kw=name(spin(rock(.25,0xaab4bd,57),.04),'An icy wanderer',st);
     kw.position.set(9.5,-2.5,-1);g.add(kw);
@@ -1481,9 +1484,9 @@ const BUILDERS=[
     'It was the first planet found with a telescope — William Herschel spotted it in 1781.',
     'Most of its moons are named after characters from Shakespeare.'],
   path:makePath([
-    {u:0,p:[0,.5,11.5],l:[0,0,0]},
-    {u:.6,p:[-1.7,.85,8.4],l:[-.3,0,0]},
-    {u:1,p:[-2.3,.95,7.7],l:[-.4,0,0]}]),
+    {u:0,p:[0,.65,15],l:[0,0,0]},
+    {u:.6,p:[-2.2,1.1,10.9],l:[-.3,0,0]},
+    {u:1,p:[-3,1.25,10],l:[-.4,0,0]}]),
   build(g,st){
     sunLight(g,[-8,2,6]);
     sunFill(g);
@@ -1496,11 +1499,15 @@ const BUILDERS=[
     /* the moons ride the tipped ring plane — a Ferris wheel around the
        planet: Ariel and Miranda hold the authored frame, the rest climb
        overhead and dip below for anyone who looks */
-    const WHEEL=[['Ariel',.07,2.2,1.8,-.6],['Miranda',.05,-1.2,-2.6,1.5],
-                 ['Umbriel',.09,.6,4.8,-1.2],['Titania',.11,-3.2,5.8,1.0],
-                 ['Oberon',.13,-5.4,-4.2,2.6]];
+    /* real relative sizes and albedos: bright young Ariel, charcoal
+       Umbriel, big rosy Titania and Oberon, little Miranda */
+    const WHEEL=[['Ariel',.11,2.2,1.8,-.6,TEX.moon,0xd6dbe0],
+                 ['Miranda',.06,-1.2,-2.6,1.5,TEX.moon,0xc4cdd6],
+                 ['Umbriel',.11,.6,4.8,-1.2,TEX.mercury,0x676d76],
+                 ['Titania',.16,-3.2,5.8,1.0,TEX.moon,0xcdb4a4],
+                 ['Oberon',.15,-5.4,-4.2,2.6,TEX.mercury,0xb59a8a]];
     for(const w of WHEEL){
-      const m=name(spin(sphere(w[1],TEX.triton),.05),w[0],st);
+      const m=name(spin(sphere(w[1],w[5],{mat:{color:w[6]}}),.05),w[0],st);
       m.position.set(w[2],w[3],w[4]);g.add(m);
     }
   }})],
@@ -1522,30 +1529,30 @@ const BUILDERS=[
     'Mimas, floating below the rings, wears one giant crater like an eye.',
     'The rings may be temporary: in a few hundred million years they could slowly rain away into the planet.'],
   path:makePath([
-    {u:0,p:[0,-.7,12.4],l:[0,.1,0]},
-    {u:.5,p:[1.5,2.5,9.6],l:[0,0,0]},
-    {u:1,p:[2.3,3.2,8.4],l:[.3,.3,0]}]),
+    {u:0,p:[0,-.9,15.5],l:[0,.1,0]},
+    {u:.5,p:[1.9,3.1,12],l:[0,0,0]},
+    {u:1,p:[2.9,4,10.5],l:[.3,.3,0]}]),
   build(g,st){
     sunLight(g,[9,4,7]);
     sunFill(g);
     const grp=new THREE.Group();grp.rotation.set(rad(10),0,rad(-22));g.add(grp);
     grp.add(name(spin(sphere(2.2,TEX.saturn),.022),'Saturn',st));
     grp.add(ringMesh(2.75,5.1,TEX.ringSat));
-    const ti=name(spin(sphere(.16,TEX.titan),.03),'Titan',st);
+    const ti=name(spin(sphere(.19,TEX.titan),.03),'Titan',st);
     ti.position.set(-6.5,.4,-3);g.add(ti);
-    const tRim=rim(.16,0xd9822b,.3);tRim.position.copy(ti.position);g.add(tRim);
-    const en=name(spin(sphere(.06,TEX.enceladus,{shin:30}),.04),'Enceladus',st);
+    const tRim=rim(.19,0xd9822b,.3);tRim.position.copy(ti.position);g.add(tRim);
+    const en=name(spin(sphere(.075,TEX.enceladus,{shin:30}),.04),'Enceladus',st);
     en.position.set(4.4,-.3,3.4);g.add(en);
     const plume=sprite(glowTexture('rgba(235,245,255,.5)','rgba(235,245,255,.15)'),.18);
     plume.position.set(4.4,-.39,3.4);g.add(plume);
     /* the wider family, scattered around your head */
-    const hy=name(spin(rock(.06,0x8f8577,61),.5),'Hyperion',st);   /* tumbles, chaotically fast */
+    const hy=name(spin(rock(.075,0xa8927a,61),.5),'Hyperion',st);   /* tumbles, chaotically fast */
     hy.position.set(0,7.5,2);g.add(hy);
-    const ia=name(spin(rock(.075,0x3e352c,64),.03),'Iapetus',st);
+    const ia=name(spin(rock(.09,0x4a3d31,64),.03),'Iapetus',st);
     ia.position.set(-9,6,4);g.add(ia);
-    const rh=name(spin(sphere(.09,TEX.triton),.04),'Rhea',st);
+    const rh=name(spin(sphere(.12,TEX.moon,{mat:{color:0xe6e8ea}}),.04),'Rhea',st);
     rh.position.set(8.5,2.2,3);g.add(rh);
-    const mi=name(spin(sphere(.035,TEX.mercury),.04),'Mimas',st);
+    const mi=name(spin(sphere(.05,TEX.moon,{mat:{color:0xd2d7dd}}),.04),'Mimas',st);
     mi.position.set(3.2,-1.6,4.2);g.add(mi);
   }})],
 
@@ -1565,9 +1572,9 @@ const BUILDERS=[
     'Four hundred years ago Galileo saw these same four dots strung beside Jupiter — and realized not everything circles the Earth.',
     'Jupiter spins faster than any other planet: a full day takes less than 10 hours.'],
   path:makePath([
-    {u:0,p:[0,.8,17],l:[0,0,0]},
-    {u:.55,p:[-2.0,.9,11.6],l:[-.2,0,0]},
-    {u:1,p:[-3.1,1.15,10.3],l:[-.5,0,0]}]),
+    {u:0,p:[0,1,21.2],l:[0,0,0]},
+    {u:.55,p:[-2.5,1.1,14.5],l:[-.2,0,0]},
+    {u:1,p:[-3.9,1.4,12.9],l:[-.5,0,0]}]),
   build(g,st){
     sunLight(g,[-10,4,8]);
     sunFill(g);
@@ -1576,10 +1583,10 @@ const BUILDERS=[
     /* Galileo's own sketch: the four moons strung on BOTH sides of the
        disc like pearls — Io and Europa hold the frame, the giants wait
        a head-turn away */
-    const M=[['Io',.078,TEX.io,[-4.8,.15,-.6]],
-             ['Europa',.067,TEX.europa,[4.4,-.35,.9]],
-             ['Ganymede',.113,TEX.ganymede,[9.5,.6,4.2]],
-             ['Callisto',.104,TEX.callisto,[-9.5,-.6,3.5]]];
+    const M=[['Io',.098,TEX.io,[-4.8,.15,-.6]],
+             ['Europa',.084,TEX.europa,[4.4,-.35,.9]],
+             ['Ganymede',.141,TEX.ganymede,[9.5,.6,4.2]],
+             ['Callisto',.13,TEX.callisto,[-9.5,-.6,3.5]]];
     for(const row of M){
       const m=name(spin(sphere(row[1],row[2]),.05),row[0],st);
       m.position.set(row[3][0],row[3][1],row[3][2]);g.add(m);
@@ -1701,9 +1708,9 @@ const BUILDERS=[
     'A day on Mars is only 40 minutes longer than ours — but its year is nearly two Earth years.',
     'Sunsets on Mars are blue: the fine dust scatters light the opposite way to Earth’s sky.'],
   path:makePath([
-    {u:0,p:[0,.5,9.5],l:[0,0,0]},
-    {u:.55,p:[-1.4,.68,6.6],l:[-.2,0,0]},
-    {u:1,p:[-1.9,.6,6.1],l:[-.4,0,0]}]),
+    {u:0,p:[0,.7,12.8],l:[0,0,0]},
+    {u:.55,p:[-1.9,.9,8.9],l:[-.2,0,0]},
+    {u:1,p:[-2.6,.8,8.2],l:[-.4,0,0]}]),
   build(g,st){
     sunLight(g,[-8,3,6]);
     sunFill(g);
@@ -1711,8 +1718,8 @@ const BUILDERS=[
     g.add(rim(1.6,0xc98d5e,.05));
     /* Phobos genuinely hurries: one visible lap around the disc —
        phased to sit in frame when the moons caption lands */
-    const ph=name(spin(rock(.05,0x5b564f,91),.1),'Phobos',st);g.add(ph);
-    const de=name(spin(rock(.035,0x63605a,95),.02),'Deimos',st);de.position.set(4.2,1.1,1.2);g.add(de);
+    const ph=name(spin(rock(.062,0x6b6258,91),.1),'Phobos',st);g.add(ph);
+    const de=name(spin(rock(.046,0x73695e,95),.02),'Deimos',st);de.position.set(4.2,1.1,1.2);g.add(de);
     /* home, seen from Mars: a pale blue double star */
     const eh=name(sprite(glowTexture('rgba(160,200,255,.9)','rgba(120,170,255,.3)'),.35),'Earth & the Moon, from Mars',st);
     eh.position.set(-8,1.5,.5);g.add(eh);
@@ -1742,9 +1749,9 @@ const BUILDERS=[
     'Moonlight is sunlight bouncing off gray rock; it reaches us 1.3 seconds after leaving the Moon.',
     'Right now, Earth is carrying you around the Sun at 30 km every second.'],
   path:makePath([
-    {u:0,p:[-7,1.1,2.5],l:[0,0,0]},
-    {u:.3,p:[3,1,7.9],l:[0,0,0]},
-    {u:.5,p:[4.6,1.35,9.4],l:[.8,.15,-.4]},
+    {u:0,p:[-9.1,1.4,3.3],l:[0,0,0]},
+    {u:.3,p:[3.9,1.3,10.3],l:[0,0,0]},
+    {u:.5,p:[6,1.75,12.2],l:[.8,.15,-.4]},
     {u:.72,p:[7.8,1,4.4],l:[12,.6,-4]},
     {u:1,p:[9.6,.95,-.9],l:[12,.6,-4]}]),
   build(g,st){
@@ -1794,7 +1801,7 @@ const BUILDERS=[
     'It also spins backwards — on Venus, the Sun rises in the west.',
     'Venus has no moons at all — it travels alone. Look left for its neighbors: Earth and the Moon, shining together.',
     'After the Sun and Moon, Venus is the brightest natural light in our sky.'],
-  path:makePath([{u:0,p:[0,.4,8.5],l:[0,0,0]},{u:1,p:[1.8,.6,5.6],l:[0,0,0]}]),
+  path:makePath([{u:0,p:[0,.55,11.5],l:[0,0,0]},{u:1,p:[2.4,.8,7.6],l:[0,0,0]}]),
   build(g,s){
     sunLight(g,[8,2,6],1.1);
     sunFill(g);
@@ -1828,9 +1835,9 @@ const BUILDERS=[
     'Sunlight blasts sodium atoms right off the surface, giving the little planet a faint golden tail — like a comet. Look right to see it stream away.',
     'It is not much bigger than our Moon — and it is slowly shrinking as its iron heart cools.'],
   path:makePath([
-    {u:0,p:[0,.5,7.5],l:[0,0,0]},
-    {u:.6,p:[-1.5,.68,5.6],l:[-.25,0,0]},
-    {u:1,p:[-2.2,.55,5.0],l:[-.5,0,0]}]),
+    {u:0,p:[0,.7,10.1],l:[0,0,0]},
+    {u:.6,p:[-2,.9,7.6],l:[-.25,0,0]},
+    {u:1,p:[-3,.75,6.8],l:[-.5,0,0]}]),
   build(g,st){
     sunLight(g,[-36,8,-6],1.25);
     sunFill(g);
@@ -1859,6 +1866,9 @@ const BUILDERS=[
     })();
     const ve=name(sprite(glowTexture('rgba(245,245,240,1)','rgba(230,230,225,.3)'),.25),'Venus, blazing in the night',st);
     ve.position.set(3,5.5,-4);g.add(ve);
+    /* the big Sun at left IS the sun here; hide it the moment a flight
+       begins so the real one ahead takes over without a rival */
+    st.update=function(){sg.visible=sc.visible=!TR;};
   }})],
 
 /* ---- 10 · THE SUN ---- */
@@ -1887,7 +1897,7 @@ const BUILDERS=[
       if(st.wings)for(const w of st.wings)w.visible=!sci;
       buildCtx(st);
     }}],
-  path:makePath([{u:0,p:[0,.5,16],l:[0,0,0]},{u:1,p:[2.2,.8,12.5],l:[0,0,0]}]),
+  path:makePath([{u:0,p:[0,.5,17.8],l:[0,0,0]},{u:1,p:[2.4,.9,14.2],l:[0,0,0]}]),
   build(g,s){
     s.body=name(spin(new THREE.Mesh(new THREE.SphereGeometry(3,96,64),makeSunMaterial()),.004),'The Sun',s);
     g.add(s.body);
@@ -1989,7 +1999,7 @@ const BUILDERS=[
       for(let i=0;i<it.length;i++){
         const half=it[i].rg?5.75:it[i].r;
         const prev=(i===0)?0:(it[i-1].rg?5.75:it[i-1].r);
-        x+=(i===0)?0:(prev+half+((half>1||prev>1)?1:.6));xs.push(x);
+        x+=(i===0)?0:(prev+half+((half>1||prev>1)?2.6:1.6));xs.push(x);
       }
       const cxOff=(xs[0]-it[0].r+xs[7]+(it[7].rg?5.75:it[7].r))/2;
       for(let i=0;i<it.length;i++){
@@ -1999,8 +2009,9 @@ const BUILDERS=[
         if(p.rg){p.rg.position.copy(p.m.position);p.rg.rotation.set(rad(14),0,rad(-18));}
       }
       if(aspect>=1){
-        /* wide screens: everything fits at once */
-        st.fit={w:15.4,h:6.4};
+        /* wide screens: everything fits at once — framing measured
+           from the actual row so spacing can breathe */
+        st.fit={w:(xs[7]+(it[7].rg?5.75:it[7].r)-xs[0]+it[0].r)/2+1.2,h:6.4};
         st.path=makePath([{u:0,p:[0,1.4,20],l:[0,.4,0]},{u:1,p:[0,2,26.5],l:[0,.4,0]}]);
       }else{
         /* phones: glide along the row — a few planets at a time, easy to compare */
@@ -2018,6 +2029,7 @@ const BUILDERS=[
 /* ---- 12 · ORBIT MAP ---- */
 ['Drawing the orbit map…',()=>addStop({
   name:'Orbit Map',dur:18,travelNote:false,
+  lookPit:rad(12),   /* a diagram from above: gentle tilts only — never a stare into empty sky */
   captions:[
     {t:'The order from the Sun',k:'title'},
     {t:'Mercury · Venus · Earth · Mars · Jupiter · Saturn · Uranus · Neptune',k:'sub'},
@@ -2145,7 +2157,8 @@ const LOOK_TAU_DRAG=.06,LOOK_TAU_COAST=.18;        /* follow lag · release sett
 const LOOK_HOLD_MS=1800,LOOK_W_RET=3.5,LOOK_V_MAX=2;
 const NOPOINTER=matchMedia('(any-pointer:none)').matches;   /* TVs: feature dormant */
 function lookClampT(){
-  const my=TR?LOOK_YAW_TR:LOOK_YAW_MAX,mp=TR?LOOK_PIT_TR:LOOK_PIT_MAX;
+  const lp=(cur>=0&&stops[cur]&&stops[cur].lookPit)||LOOK_PIT_MAX;
+  const my=TR?LOOK_YAW_TR:LOOK_YAW_MAX,mp=TR?LOOK_PIT_TR:Math.min(lp,LOOK_PIT_MAX);
   LOOK.ty=Math.max(-my,Math.min(my,LOOK.ty));
   LOOK.tp=Math.max(-mp,Math.min(mp,LOOK.tp));
 }
@@ -2848,6 +2861,9 @@ function tick(now){
   for(let iv=0;iv<=10;iv++){
     stops[iv].group.visible=(Math.abs(iv-cur)<=1)||(!!TR&&Math.abs(iv-TR.to)<=1);
   }
+  /* at Mercury the stop's own giant Sun stands in — the real tableau
+     ahead would read as a second, dimmer sun. It returns in flight. */
+  if(cur===9&&!TR)stops[10].group.visible=false;
   /* belt is heavy — draw it only when nearby */
   const bg=stops[5]&&stops[5].group;
   if(bg)bg.visible=((cur===5)||(!!TR&&TR.to===5));
