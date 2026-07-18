@@ -1299,12 +1299,21 @@ function addStop(cfg){
   if(st.captions&&isFinite(st.dur))
     st.slot=Math.max(3,Math.min(5,st.dur/st.captions.length));
   else st.slot=st.slot||4;
+  BUILDING=st;
   st.build(g,st);
+  BUILDING=null;
   stops.push(st);STOP_NAMES.push(st.name);
   return st;
 }
+/* spinners run on their stop's clock, from an authored base orientation:
+   every arrival — by tour, by jumping, at any pace — presents the same
+   face (Jupiter's Great Red Spot, the Moon's maria, …). The base is
+   whatever rotation the builder leaves on the mesh; it is re-imposed at
+   the start of any travel toward the stop, while the world is still a
+   distant dot. */
+let BUILDING=null;
 const spinners=[];
-function spin(m,rate){spinners.push({m:m,rate:rate});return m;}
+function spin(m,rate){spinners.push({m:m,rate:rate,st:BUILDING,base:null});return m;}
 
 const BUILDERS=[
 
@@ -1593,7 +1602,7 @@ const BUILDERS=[
     cl.renderOrder=1;g.add(cl);
     g.add(rim(1.5,0x6fa8e8,.1));
     const mo=name(spin(sphere(.41,TEX.moon),.012),'The Moon',st);
-    mo.rotation.y=-1.45;               /* the familiar near side — its maria — faces us, lit */
+    mo.rotation.y=-1.45;               /* near side base: maria centered at the featured beat */
     mo.material.emissive=new THREE.Color(0x11141a);  /* faint earthshine on the dark limb */
     mo.position.set(12,.6,-4);g.add(mo);
   }})],
@@ -2179,7 +2188,12 @@ function tick(now){
   /* every visible scene keeps living */
   for(let i2=0;i2<stops.length;i2++){const s2=stops[i2];
     if(s2.group.visible&&s2.update)s2.update(playing?jdt:0,(i2===cur)?stopClock:GT);}
-  if(playing){for(const s of spinners)s.m.rotation.y+=s.rate*jdt;}
+  for(const s of spinners){
+    if(s.base===null)s.base=s.m.rotation.y;
+    if(!s.st)continue;
+    if(TR&&s.st===stops[TR.to])s.m.rotation.y=s.base;
+    else if(!TR&&s.st===stops[cur])s.m.rotation.y=s.base+s.rate*stopClock;
+  }
   if(TR){
     if(playing)TR.t+=jdt;
     const tt=Math.min(TR.t/TR.dur,1);
@@ -2363,12 +2377,20 @@ function enhanceJupiter(tex){
     const sc=document.createElement('canvas');sc.width=256;sc.height=128;
     sc.getContext('2d').drawImage(img,0,0,256,128);
     const sd=sc.getContext('2d').getImageData(0,0,256,128).data;
+    /* redness minus its row's mean: a localized red oval (the Spot)
+       outranks the uniformly red belts that share its latitudes */
+    const red=new Float32Array(256*128),rowM=new Float32Array(128);
+    for(let y=0;y<128;y++){let s=0;
+      for(let xx=0;xx<256;xx++){const k=(y*256+xx)*4;
+        const r=sd[k]-Math.max(sd[k+1],sd[k+2]);red[y*256+xx]=r;s+=r;}
+      rowM[y]=s/256;
+    }
     let best=-1e9,bu=.3,bv=.62;
-    for(let y=40;y<118;y++)for(let xx=0;xx<256;xx++){
+    for(let y=8;y<120;y++)for(let xx=0;xx<256;xx++){
       let tot=0;
-      for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){
-        const k=((Math.min(127,Math.max(0,y+dy)))*256+((xx+dx+256)%256))*4;
-        tot+=sd[k]-Math.max(sd[k+1],sd[k+2]);
+      for(let dy=-2;dy<=2;dy++)for(let dx=-2;dx<=2;dx++){
+        const yy=Math.min(127,Math.max(0,y+dy));
+        tot+=red[yy*256+((xx+dx+256)%256)]-rowM[yy];
       }
       if(tot>best){best=tot;bu=xx/256;bv=y/128;}
     }
@@ -2397,10 +2419,14 @@ function jupiterMeshes(){
   scene.traverse(function(o){if(o.isMesh&&mats.indexOf(o.material)>=0)list.push(o);});
   return list;
 }
-/* rotate every Jupiter so the Great Red Spot faces the camera */
+/* rotate every Jupiter so the Great Red Spot faces the camera —
+   updates the spinner base too, so the facing survives the stop clock */
 function faceGRS(u){
   const rot=(0.25-u)*TAU;
-  for(const m of jupiterMeshes())m.rotation.y=rot;
+  for(const m of jupiterMeshes()){
+    m.rotation.y=rot;
+    for(const s of spinners)if(s.m===m){s.base=rot;break;}
+  }
 }
 let hdCount=0;
 function creditOn(){
