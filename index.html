@@ -492,6 +492,29 @@ function galaxyTexture(){
   x.fillStyle=g;x.beginPath();x.arc(0,0,30,0,TAU);x.fill();
   return texFrom(c);
 }
+/* a soft nebula: layered radial blobs inside an irregular envelope —
+   no ctx.filter, matching the file's Safari constraint */
+function nebulaTexture(seed,core,fringe){
+  const c=document.createElement('canvas');c.width=c.height=256;
+  const x=c.getContext('2d');
+  x.globalCompositeOperation='lighter';
+  for(let k=0;k<14;k++){
+    const a=h3(k,1,seed,19)*TAU,rr=20+70*Math.pow(h3(k,2,seed,19),1.4);
+    const px=128+Math.cos(a)*rr*.9,py=128+Math.sin(a)*rr*.6;
+    const R2=26+40*h3(k,3,seed,19);
+    const col=(k%3===0)?fringe:core;
+    const g=x.createRadialGradient(px,py,0,px,py,R2);
+    g.addColorStop(0,'rgba('+col+','+(.04+.05*h3(k,4,seed,19)).toFixed(3)+')');
+    g.addColorStop(1,'rgba('+col+',0)');
+    x.fillStyle=g;x.beginPath();x.arc(px,py,R2,0,TAU);x.fill();
+  }
+  for(let k=0;k<4;k++){
+    const g=x.createRadialGradient(128,128,0,128,128,120+20*k);
+    g.addColorStop(0,'rgba('+fringe+',.018)');g.addColorStop(1,'rgba('+fringe+',0)');
+    x.fillStyle=g;x.beginPath();x.arc(128,128,120+20*k,0,TAU);x.fill();
+  }
+  return texFrom(c);
+}
 /* distant-sun glow with a quiet four-point diffraction cross */
 function sunGlowTexture(){
   const c=document.createElement('canvas');c.width=c.height=256;
@@ -946,22 +969,83 @@ function starPositions(N,seed){
      from the forward flight axis so the void stays a void; two drift
      20–25° off it — company in the corner of the eye at the stops */
   const galTex=galaxyTexture();
+  /* placement rule: within ~25° of forward the sky stays quiet (the
+     authored film owns that cone); the wonders live 40–85° off axis,
+     where only a turned head finds them. Tints ride SpriteMaterial
+     color over the shared near-white texture. */
   const GAL=[
-    {th:.8,ph:1.15,s:46,o:.5,rot:.6,sq:.42},
-    {th:4.35,ph:1.75,s:26,o:.34,rot:2.1,sq:.36},
-    {th:3.9,ph:2.3,s:32,o:.38,rot:4,sq:.5},
-    {th:4.95,ph:1.32,s:20,o:.3,rot:1.2,sq:.34},
-    {th:3.4,ph:2.35,s:24,o:.3,rot:5.1,sq:.46}];
+    {th:5.90,ph:1.05,s:64,o:.5,rot:.6,sq:.42,c:0xffd9b0,nm:'A golden galaxy — billions of suns, impossibly far'},
+    {th:4.35,ph:1.75,s:26,o:.28,rot:2.1,sq:.36,c:0xc9d6ff},
+    {th:3.90,ph:2.30,s:32,o:.38,rot:4,sq:.5},
+    {th:4.95,ph:1.32,s:20,o:.26,rot:1.2,sq:.34,c:0xf2dbd2},
+    {th:3.40,ph:2.35,s:30,o:.36,rot:5.1,sq:.46,c:0xbfe0e8},
+    {th:3.60,ph:1.00,s:14,o:.30,rot:2.8,sq:.44,c:0xdfe6ff,nm:'Two galaxies, slowly colliding'},
+    {th:3.63,ph:1.02,s:9,o:.24,rot:4.4,sq:.40,c:0xffe2c4},
+    {th:5.50,ph:2.00,s:22,o:.26,rot:1.7,sq:.12,c:0xd8cfc0,nm:'A galaxy seen edge-on'}];
+  window.__skyWonders=[];
+  function skyPos(th,ph,r){return[(r||840)*Math.sin(ph)*Math.cos(th),(r||840)*Math.cos(ph),(r||840)*Math.sin(ph)*Math.sin(th)];}
   for(const gg of GAL){
-    const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:galTex,
+    const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:galTex,color:gg.c||0xffffff,
       transparent:true,opacity:gg.o,blending:THREE.AdditiveBlending,depthWrite:false,
       rotation:gg.rot*1.7}));
-    sp.position.set(840*Math.sin(gg.ph)*Math.cos(gg.th),840*Math.cos(gg.ph),
-      840*Math.sin(gg.ph)*Math.sin(gg.th));
+    sp.position.set(...skyPos(gg.th,gg.ph));
     sp.scale.set(gg.s,gg.s*gg.sq,1);
     sp.userData={baseOp:gg.o,fadeK:.35,tw:null};
     grp.add(sp);
+    if(gg.nm)window.__skyWonders.push({o:sp,nm:gg.nm});
   }
+  /* two painted nebulae — clouds where stars are born */
+  const NEB=[
+    {seed:5,core:'255,190,140',fringe:'200,90,80',th:5.75,ph:1.35,sx:112,sy:80,o:.22,nm:'A nebula — a cloud where stars are born'},
+    {seed:9,core:'150,200,255',fringe:'90,120,200',th:3.75,ph:1.90,sx:132,sy:84,o:.17,nm:'A cold drift of gas and dust'}];
+  for(const nb of NEB){
+    const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:nebulaTexture(nb.seed,nb.core,nb.fringe),
+      transparent:true,opacity:nb.o,blending:THREE.AdditiveBlending,depthWrite:false}));
+    sp.position.set(...skyPos(nb.th,nb.ph,830));
+    sp.scale.set(nb.sx,nb.sy,1);
+    sp.userData={baseOp:nb.o,fadeK:.30,tw:{a:.05,o:.05,p:nb.seed}};
+    grp.add(sp);
+    window.__skyWonders.push({o:sp,nm:nb.nm});
+  }
+  /* two glittering star clusters */
+  function cluster(th,ph,n,sig,col,size,haloCol,haloS,haloO,nm){
+    const c0=skyPos(th,ph,880),cp=new Float32Array(n*3);
+    for(let i=0;i<n;i++){
+      const gx=(h3(i,1,th*100,7)+h3(i,2,th*100,7)-1)*sig,
+            gy=(h3(i,3,th*100,7)+h3(i,4,th*100,7)-1)*sig,
+            gz=(h3(i,5,th*100,7)+h3(i,6,th*100,7)-1)*sig;
+      cp[i*3]=c0[0]+gx;cp[i*3+1]=c0[1]+gy;cp[i*3+2]=c0[2]+gz;
+    }
+    const cg=new THREE.BufferGeometry();
+    cg.setAttribute('position',new THREE.Float32BufferAttribute(cp,3));
+    const pts=new THREE.Points(cg,mat(size,.85,{color:col}));
+    pts.userData={baseOp:.85,baseSize:size,fadeK:.62,tw:{a:.06,o:1.1,p:th}};
+    grp.add(pts);
+    const halo=new THREE.Sprite(new THREE.SpriteMaterial({map:glowTexture(haloCol[0],haloCol[1]),
+      transparent:true,opacity:haloO,blending:THREE.AdditiveBlending,depthWrite:false}));
+    halo.position.set(c0[0],c0[1],c0[2]);halo.scale.set(haloS,haloS,1);
+    halo.userData={baseOp:haloO,fadeK:.35,tw:null};
+    grp.add(halo);
+    const anchor=new THREE.Object3D();anchor.position.set(c0[0],c0[1],c0[2]);grp.add(anchor);
+    window.__skyWonders.push({o:anchor,nm:nm});
+  }
+  cluster(5.15,1.10,150,18,0xcfe0ff,1.3,['rgba(180,205,255,.5)','rgba(150,180,255,.15)'],34,.08,
+    'A young star cluster — all born from one cloud');
+  cluster(3.30,1.50,90,7,0xffe3b8,1.1,['rgba(255,225,175,.6)','rgba(255,205,140,.2)'],16,.18,
+    'An ancient cluster, older than the Sun');
+  /* the galactic core: a warm downtown where the band runs deepest */
+  const core=new THREE.Sprite(new THREE.SpriteMaterial({map:glowTexture('rgba(255,220,170,.5)','rgba(255,170,90,.15)'),
+    color:0xffd9ac,transparent:true,opacity:.10,blending:THREE.AdditiveBlending,depthWrite:false}));
+  core.position.set(.491*860,-.290*860,-.822*860);core.scale.set(120,120,1);
+  core.userData={baseOp:.10,fadeK:.25,tw:null};
+  grp.add(core);
+  /* one star that breathes */
+  const vs=new THREE.Sprite(new THREE.SpriteMaterial({map:starTexture(),color:0xfff2d8,
+    transparent:true,opacity:.6,blending:THREE.AdditiveBlending,depthWrite:false}));
+  vs.position.set(...skyPos(4.20,1.10,870));vs.scale.set(2.6,2.6,1);
+  vs.userData={baseOp:.62,fadeK:.5,tw:{a:.6,o:.9,p:0}};
+  grp.add(vs);
+  window.__skyWonders.push({o:vs,nm:'A star that breathes — brighter, dimmer, brighter'});
   scene.add(grp);window.__stars=grp;
 })();
 function sizeStars(){
@@ -1326,17 +1410,25 @@ const BUILDERS=[
     {t:'The quiet edge of our planetary system',k:'sub'},
     {t:'From here, the Sun is only a very bright star',k:'sub'}],
   facts:[
-    'Space is almost perfectly empty — far emptier than any vacuum we can make on Earth.',
+    'The darkness here is not empty. Drag the sky and look around — every faint smudge of light is another galaxy of billions of suns.',
+    'Somewhere out here drifts Pluto, with a bright heart-shaped plain on its face.',
     'It is completely silent out here: sound needs air to travel, and space has none.',
     'Light is the fastest thing there is — and even light needs more than four years to reach the next star beyond the Sun.'],
   path:makePath([{u:0,p:[0,0,16],l:[0,1,-200]},{u:1,p:[0,.2,3],l:[0,1,-200]}]),
   build(g,st){
     sunLight(g,[0,18,55],.55,175);
-    for(let i=0;i<6;i++){
+    for(let i=0;i<3;i++){
       const r=rock(.22+.3*h3(i,1,9,11),0x97a2ab,i+30);
-      r.position.set((h3(i,2,9,11)-.5)*16,(h3(i,3,9,11)-.5)*6,-4-i*4.5);
+      r.position.set((h3(i,2,9,11)-.5)*16,(h3(i,3,9,11)-.5)*6,-8-i*7);
       name(spin(r,.05),'Icy rock',st);g.add(r);
     }
+    /* three drift abeam and overhead — river stones sliding past your shoulders */
+    for(const [x,y,z,s] of [[7.5,2.6,0,.35],[-6.5,-2,-1.5,.3],[3.5,5.5,-4,.25]]){
+      const r=name(spin(rock(s,0x97a2ab,40+Math.round(x)),.05),'Icy rock',st);
+      r.position.set(x,y,z);g.add(r);
+    }
+    const pl=name(sprite(glowTexture('rgba(230,220,210,.8)','rgba(200,185,175,.25)'),1.2),'Pluto, far away',st);
+    pl.position.set(-110,25,-120);g.add(pl);
   }})],
 
 /* ---- 1 · NEPTUNE ---- */
@@ -1364,6 +1456,13 @@ const BUILDERS=[
     n.rotation.z=rad(-28);g.add(n);g.add(rim(2,0x4d7fd0,.12));
     const tr=name(spin(sphere(.11,TEX.triton),.04),'Triton',st);
     tr.position.set(5.2,.9,-2.5);g.add(tr);
+    /* the rest of the retinue, scattered around your head */
+    const pr=name(spin(rock(.07,0x8a8f96,53),.06),'Proteus',st);
+    pr.position.set(-4.5,-.9,2.5);g.add(pr);
+    const ne=name(spin(sphere(.04,TEX.triton),.05),'Nereid',st);
+    ne.position.set(0,6,-3);g.add(ne);
+    const kw=name(spin(rock(.25,0xaab4bd,57),.04),'An icy wanderer',st);
+    kw.position.set(9.5,-2.5,-1);g.add(kw);
   }})],
 
 /* ---- 2 · URANUS ---- */
@@ -1376,6 +1475,7 @@ const BUILDERS=[
     {t:'Uranus rotates almost on its side',k:'sub'},
     {t:'Its five largest moons: Miranda · Ariel · Umbriel · Titania · Oberon',k:'sub'}],
   facts:[
+    'Uranus rolls on its side — and its moons roll with it, circling top-over-bottom like a Ferris wheel. Drag the sky upward to follow them.',
     'Because it lies tipped over, each season on Uranus lasts about 21 Earth years.',
     'Its air is the coldest of any planet, dropping below −220 °C.',
     'It was the first planet found with a telescope — William Herschel spotted it in 1781.',
@@ -1393,11 +1493,15 @@ const BUILDERS=[
     grp.add(name(spin(sphere(1.9,TEX.uranus),.02),'Uranus',st));
     grp.add(ringMesh(2.6,3.4,TEX.ringUra,true));
     g.add(rim(1.9,0x6fd8cf,.1));
-    const MO=['Miranda','Ariel','Umbriel','Titania','Oberon'];
-    for(let i=0;i<5;i++){
-      const m=name(spin(sphere(.05+.02*i,TEX.triton),.05),MO[i],st);
-      m.position.set(-3.6-i*1.15,(h3(i,4,10,13)-.5)*1.6,-1+(h3(i,5,10,13)-.5)*3);
-      g.add(m);
+    /* the moons ride the tipped ring plane — a Ferris wheel around the
+       planet: Ariel and Miranda hold the authored frame, the rest climb
+       overhead and dip below for anyone who looks */
+    const WHEEL=[['Ariel',.07,2.2,1.8,-.6],['Miranda',.05,-1.2,-2.6,1.5],
+                 ['Umbriel',.09,.6,4.8,-1.2],['Titania',.11,-3.2,5.8,1.0],
+                 ['Oberon',.13,-5.4,-4.2,2.6]];
+    for(const w of WHEEL){
+      const m=name(spin(sphere(w[1],TEX.triton),.05),w[0],st);
+      m.position.set(w[2],w[3],w[4]);g.add(m);
     }
   }})],
 
@@ -1414,6 +1518,8 @@ const BUILDERS=[
     'Saturn is the lightest planet for its size. If you could find an ocean big enough, it would float.',
     'The rings are wider than twenty Earths set side by side — yet in most places only about as thick as a house.',
     'On little Enceladus, fountains of water spray out through cracks in the ice — signs of a hidden ocean underneath.',
+    'Look up: Hyperion tumbles so chaotically that no one can predict which way it will face tomorrow.',
+    'Mimas, floating below the rings, wears one giant crater like an eye.',
     'The rings may be temporary: in a few hundred million years they could slowly rain away into the planet.'],
   path:makePath([
     {u:0,p:[0,-.7,12.4],l:[0,.1,0]},
@@ -1432,6 +1538,15 @@ const BUILDERS=[
     en.position.set(4.4,-.3,3.4);g.add(en);
     const plume=sprite(glowTexture('rgba(235,245,255,.5)','rgba(235,245,255,.15)'),.18);
     plume.position.set(4.4,-.39,3.4);g.add(plume);
+    /* the wider family, scattered around your head */
+    const hy=name(spin(rock(.06,0x8f8577,61),.5),'Hyperion',st);   /* tumbles, chaotically fast */
+    hy.position.set(0,7.5,2);g.add(hy);
+    const ia=name(spin(rock(.075,0x3e352c,64),.03),'Iapetus',st);
+    ia.position.set(-9,6,4);g.add(ia);
+    const rh=name(spin(sphere(.09,TEX.triton),.04),'Rhea',st);
+    rh.position.set(8.5,2.2,3);g.add(rh);
+    const mi=name(spin(sphere(.035,TEX.mercury),.04),'Mimas',st);
+    mi.position.set(3.2,-1.6,4.2);g.add(mi);
   }})],
 
 /* ---- 4 · JUPITER ---- */
@@ -1446,7 +1561,8 @@ const BUILDERS=[
   facts:[
     'Jupiter weighs more than twice as much as all the other planets put together.',
     'The Great Red Spot has been raging for at least 190 years — telescopes have watched it since the 1800s.',
-    'Its moon Ganymede is the largest in the solar system — bigger than the planet Mercury.',
+    'Its moon Ganymede is the largest in the solar system — bigger than the planet Mercury. Look right to find it.',
+    'Four hundred years ago Galileo saw these same four dots strung beside Jupiter — and realized not everything circles the Earth.',
     'Jupiter spins faster than any other planet: a full day takes less than 10 hours.'],
   path:makePath([
     {u:0,p:[0,.8,17],l:[0,0,0]},
@@ -1457,10 +1573,13 @@ const BUILDERS=[
     sunFill(g);
     g.add(name(spin(sphere(3,TEX.jupiter),.05),'Jupiter',st));
     g.add(rim(3,0xd8b98a,.05));
-    const M=[['Io',.078,TEX.io,[-5.4,.2,-1]],
-             ['Europa',.067,TEX.europa,[-6.9,-.2,.8]],
-             ['Ganymede',.113,TEX.ganymede,[-8.7,.3,-.6]],
-             ['Callisto',.104,TEX.callisto,[-10.5,-.1,.9]]];
+    /* Galileo's own sketch: the four moons strung on BOTH sides of the
+       disc like pearls — Io and Europa hold the frame, the giants wait
+       a head-turn away */
+    const M=[['Io',.078,TEX.io,[-4.8,.15,-.6]],
+             ['Europa',.067,TEX.europa,[4.4,-.35,.9]],
+             ['Ganymede',.113,TEX.ganymede,[9.5,.6,4.2]],
+             ['Callisto',.104,TEX.callisto,[-9.5,-.6,3.5]]];
     for(const row of M){
       const m=name(spin(sphere(row[1],row[2]),.05),row[0],st);
       m.position.set(row[3][0],row[3][1],row[3][2]);g.add(m);
@@ -1478,7 +1597,9 @@ const BUILDERS=[
     {t:'Ceres — the largest of them, a dwarf planet',k:'sub'}],
   facts:[
     'All the asteroids here put together weigh less than our Moon.',
-    'The rocks are so far apart that spacecraft fly straight through the belt without coming close to one.',
+    'Vesta is so big it has its own mountain — more than twice the height of Everest. See if you can spot her, brighter than the rest.',
+    'Some asteroids travel in pairs, circling each other as they circle the Sun.',
+    'That warm point of light far to the left is Jupiter — its gravity stirred this ring so it could never gather into a planet.',
     'These are leftovers from 4.6 billion years ago — building blocks that never became a planet.'],
   path:makePath([
     {u:0,p:[38,60,120],l:[0,4,0]},
@@ -1525,24 +1646,42 @@ const BUILDERS=[
     st.rocks=[];
     for(let i=0;i<210;i++){
       const r=rock(.07+.4*Math.pow(h3(i,7,22,171),1.8),0x6f6a62,i+50);
+      /* the first two dozen scatter high and low: the belt has thickness
+         now — looking up from inside the swarm finds more swarm */
       r.userData.o={th:(h3(i,4,22,173)-.5)*.2,rr:(h3(i,5,22,171)-.5)*22,
-        h:(h3(i,6,22,171)-.5)*6.5,sp:.00028+.00022*h3(i,8,22,171),
+        h:(h3(i,6,22,171)-.5)*(i<24?18:6.5),sp:.00028+.00022*h3(i,8,22,171),
         rs:(h3(i,9,22,171)-.5)*.6};
       name(r,'Asteroid',st);g.add(r);st.rocks.push(r);
     }
     const ce=name(spin(sphere(.55,TEX.ceres),.03),'Ceres',st);
     ce.userData.o={th:-.052,rr:2,h:.8,sp:.00026,rs:0};
     g.add(ce);st.rocks.push(ce);
+    /* named characters turn gravel into a place */
+    const ve=name(rock(.5,0x9a917f,44),'Vesta',st);
+    ve.userData.o={th:.045,rr:-6,h:4,sp:.00027,rs:.1};
+    g.add(ve);st.rocks.push(ve);
+    const pa=name(rock(.4,0x7d7268,47),'Pallas',st);
+    pa.userData.o={th:-.03,rr:4,h:14,sp:.00025,rs:.12};
+    g.add(pa);st.rocks.push(pa);
+    /* a binary pair near the path — two rocks circling each other */
+    const twA=name(rock(.12,0x8a8478,49),'The Twins',st);
+    twA.userData.o={th:-.012,rr:-3,h:2,sp:.00026,rs:0};
+    g.add(twA);st.rocks.push(twA);
+    const twB=name(rock(.09,0x7d7568,52),'The Twins',st);g.add(twB);
+    const jf=name(sprite(glowTexture('rgba(255,225,185,.9)','rgba(255,200,140,.3)'),1.6),'Jupiter, far off',st);
+    jf.position.set(-90,25,30);g.add(jf);
     const vv=[0,0,0];
-    st.update=function(dt){
+    st.update=function(dt,el){
       for(const r of st.rocks){
         const o=r.userData.o;o.th+=o.sp*dt;
         beltPos(o.th,o.rr,o.h,vv);
         r.position.set(vv[0],vv[1],vv[2]);
         r.rotation.x+=o.rs*dt;r.rotation.y+=o.rs*.7*dt;
       }
+      twB.position.set(twA.position.x+Math.cos(el*.7)*.55,
+        twA.position.y+Math.sin(el*.7)*.4,twA.position.z+Math.sin(el*.7)*.35);
     };
-    st.update(0);
+    st.update(0,0);
   }})],
 
 /* ---- 6 · MARS ---- */
@@ -1557,6 +1696,8 @@ const BUILDERS=[
   facts:[
     'That volcano is Olympus Mons — nearly three times the height of Mount Everest.',
     'Mars is red because its soil is rusty: iron in the dust slowly oxidized, like old metal left outside.',
+    'Phobos circles Mars three times a day — watch it hurry around the planet right now.',
+    'Look left, away from Mars: that pale blue double star is Earth and the Moon — home, seen from here.',
     'A day on Mars is only 40 minutes longer than ours — but its year is nearly two Earth years.',
     'Sunsets on Mars are blue: the fine dust scatters light the opposite way to Earth’s sky.'],
   path:makePath([
@@ -1568,8 +1709,20 @@ const BUILDERS=[
     sunFill(g);
     g.add(name(spin(sphere(1.6,TEX.mars),.022),'Mars',st));
     g.add(rim(1.6,0xc98d5e,.05));
-    const ph=name(spin(rock(.05,0x5b564f,91),.1),'Phobos',st);ph.position.set(-3.4,.5,-1.2);g.add(ph);
-    const de=name(spin(rock(.035,0x63605a,95),.1),'Deimos',st);de.position.set(-4.6,-.3,.9);g.add(de);
+    /* Phobos genuinely hurries: one visible lap around the disc —
+       phased to sit in frame when the moons caption lands */
+    const ph=name(spin(rock(.05,0x5b564f,91),.1),'Phobos',st);g.add(ph);
+    const de=name(spin(rock(.035,0x63605a,95),.02),'Deimos',st);de.position.set(4.2,1.1,1.2);g.add(de);
+    /* home, seen from Mars: a pale blue double star */
+    const eh=name(sprite(glowTexture('rgba(160,200,255,.9)','rgba(120,170,255,.3)'),.35),'Earth & the Moon, from Mars',st);
+    eh.position.set(-8,1.5,.5);g.add(eh);
+    const mh=sprite(glowTexture('rgba(235,235,230,.9)','rgba(220,220,215,.25)'),.12);
+    mh.position.set(-7.7,1.62,.5);g.add(mh);
+    st.update=function(dt,el){
+      const a=2.1-el*.14;                 /* ~45 s per lap, backwards like the real thing rises */
+      ph.position.set(Math.cos(a)*2.7,.35*Math.sin(a*.9),Math.sin(a)*2.7*.55);
+    };
+    st.update(0,0);
   }})],
 
 /* ---- 7 · EARTH & MOON ---- */
@@ -1584,6 +1737,7 @@ const BUILDERS=[
     {t:'Ancient, cratered, and silent',k:'sub'}],
   facts:[
     'Oceans cover almost three-quarters of Earth — from out here, it is a blue world.',
+    'Watch the space near Earth: astronauts on the Space Station circle it every 90 minutes — sixteen sunrises a day — and now and then the panels catch the Sun and flash hello.',
     'The Moon drifts about 4 cm farther away every year — about as fast as your fingernails grow.',
     'Moonlight is sunlight bouncing off gray rock; it reaches us 1.3 seconds after leaving the Moon.',
     'Right now, Earth is carrying you around the Sun at 30 km every second.'],
@@ -1606,6 +1760,24 @@ const BUILDERS=[
     mo.rotation.y=-1.45;               /* near side base: maria centered at the featured beat */
     mo.material.emissive=new THREE.Color(0x11141a);  /* faint earthshine on the dark limb */
     mo.position.set(12,.6,-4);g.add(mo);
+    /* something man-made, alive in the scene: a glint endlessly
+       rounding the limb on the Station's real 51.6° inclination */
+    const iss=name(new THREE.Mesh(new THREE.SphereGeometry(.02,6,4),
+      new THREE.MeshBasicMaterial({color:0xffffff})),'The Space Station',st);
+    g.add(iss);
+    const issG=sprite(glowTexture('rgba(255,255,255,.95)','rgba(220,235,255,.3)'),.09);
+    g.add(issG);
+    const ve2=name(sprite(glowTexture('rgba(255,250,235,1)','rgba(240,230,210,.3)'),.3),'Venus, the evening star',st);
+    ve2.position.set(6,2.5,-12);g.add(ve2);
+    st.update=function(dt,el){
+      const a=el*.29,ci=Math.cos(rad(51.6)),si=Math.sin(rad(51.6));
+      iss.position.set(Math.cos(a)*1.63,Math.sin(a)*1.63*si*.9,Math.sin(a)*1.63*ci);
+      issG.position.copy(iss.position);
+      /* twice an orbit the panels catch the Sun */
+      const gl=Math.pow(Math.max(0,Math.sin(a*2+.7)),12);
+      issG.material.opacity=.25+.75*gl;
+    };
+    st.update(0,0);
   }})],
 
 /* ---- 8 · VENUS ---- */
@@ -1620,6 +1792,7 @@ const BUILDERS=[
     'Venus is the hottest planet — hotter than Mercury — because its thick air traps heat like a greenhouse.',
     'A day on Venus is longer than its year: it spins that slowly.',
     'It also spins backwards — on Venus, the Sun rises in the west.',
+    'Venus has no moons at all — it travels alone. Look left for its neighbors: Earth and the Moon, shining together.',
     'After the Sun and Moon, Venus is the brightest natural light in our sky.'],
   path:makePath([{u:0,p:[0,.4,8.5],l:[0,0,0]},{u:1,p:[1.8,.6,5.6],l:[0,0,0]}]),
   build(g,s){
@@ -1627,6 +1800,13 @@ const BUILDERS=[
     sunFill(g);
     s.body=name(spin(sphere(1.45,TEX.venus,{shin:14}),.015),'Venus',s);g.add(s.body);
     s.rim=rim(1.45,0xead9ae,.16);g.add(s.rim);
+    /* Venus's neighbors, where a Venusian would see them */
+    const eh=name(sprite(glowTexture('rgba(160,200,255,.9)','rgba(120,170,255,.3)'),.35),'Earth & the Moon, morning stars',s);
+    eh.position.set(-7,2,1.5);g.add(eh);
+    const mn=sprite(glowTexture('rgba(235,235,230,.9)','rgba(220,220,215,.25)'),.12);
+    mn.position.set(-6.72,2.1,1.5);g.add(mn);
+    const me=name(sprite(glowTexture('rgba(255,230,190,.9)','rgba(255,205,150,.3)'),.18),'Mercury, a spark near the Sun',s);
+    me.position.set(7.5,3.5,-2.5);g.add(me);
   }
   });
   window.__venusStop=st;
@@ -1644,15 +1824,41 @@ const BUILDERS=[
   facts:[
     'By day it reaches about 430 °C; by night it falls to −180 °C. With almost no air, nothing holds the warmth.',
     'A year on Mercury is just 88 Earth days — the shortest of any planet.',
+    'Turn hard left: the Sun here looks three times wider than from Earth — and eleven times brighter.',
+    'Sunlight blasts sodium atoms right off the surface, giving the little planet a faint golden tail — like a comet. Look right to see it stream away.',
     'It is not much bigger than our Moon — and it is slowly shrinking as its iron heart cools.'],
   path:makePath([
     {u:0,p:[0,.5,7.5],l:[0,0,0]},
     {u:.6,p:[-1.5,.68,5.6],l:[-.25,0,0]},
     {u:1,p:[-2.2,.55,5.0],l:[-.5,0,0]}]),
   build(g,st){
-    sunLight(g,[-40,5,10],1.25);
+    sunLight(g,[-36,8,-6],1.25);
     sunFill(g);
     g.add(name(spin(sphere(1.35,TEX.mercury,{shin:3}),.008),'Mercury',st));
+    /* the cause, at full-left yaw: the Sun, huge and near */
+    const sg=name(sprite(glowTexture('rgba(255,238,205,1)','rgba(255,190,110,.35)'),7),'The Sun, three times wider than from Earth',st);
+    sg.position.set(-20,5,-9);g.add(sg);
+    const sc=sprite(glowTexture('rgba(255,255,255,1)','rgba(255,244,225,.5)'),2);
+    sc.position.copy(sg.position);g.add(sc);
+    /* ...and the consequence, at full-right: Mercury's golden sodium
+       tail, streaming anti-sunward like a slow comet */
+    (function(){
+      const N=80,pp=new Float32Array(N*3);
+      for(let i=0;i<N;i++){
+        const t=Math.pow(h3(i,1,88,7),1.4);
+        pp[i*3]  =1.35+t*12+(h3(i,2,88,7)-.5)*(.3+t*2.4);
+        pp[i*3+1]=(h3(i,3,88,7)-.5)*(.3+t*2)-t*1;
+        pp[i*3+2]=(h3(i,4,88,7)-.5)*(.3+t*1.6)-t*3;
+      }
+      const tg=new THREE.BufferGeometry();
+      tg.setAttribute('position',new THREE.Float32BufferAttribute(pp,3));
+      g.add(new THREE.Points(tg,new THREE.PointsMaterial({color:0xffd98a,
+        map:glowTexture('rgba(255,255,255,.9)','rgba(255,255,255,0)'),
+        size:.3,sizeAttenuation:true,transparent:true,opacity:.25,
+        blending:THREE.AdditiveBlending,depthWrite:false})));
+    })();
+    const ve=name(sprite(glowTexture('rgba(245,245,240,1)','rgba(230,230,225,.3)'),.25),'Venus, blazing in the night',st);
+    ve.position.set(3,5.5,-4);g.add(ve);
   }})],
 
 /* ---- 10 · THE SUN ---- */
@@ -1670,12 +1876,15 @@ const BUILDERS=[
     'The Sun holds more than 99% of everything in the solar system — all the planets share the tiny leftover.',
     'About one million Earths could fit inside it.',
     'The sunlight warming your face is older than it seems: it bounced around inside the Sun for thousands of years before escaping.',
+    'Comets that swing this close are called sungrazers — look up and wait: the survivors leave with brand-new tails.',
+    'Glance far left or right: that pale wing of light is sunlight glinting off comet dust — on very dark nights you can see it from Earth.',
     'The Sun is a middle-aged star — about 4.6 billion years old, with billions of bright years still ahead.'],
   ctx:[{label:function(){return st.body.material.uniforms.fcMode.value?'☉  Natural view':'☉  False-color view';},
     run:function(){
       const u=st.body.material.uniforms.fcMode;u.value=u.value?0:1;
       const sci=!!u.value;   /* science view: bare disc, no atmosphere glow */
       st.glow.visible=!sci;st.corona.visible=!sci;st.chromo.visible=!sci;
+      if(st.wings)for(const w of st.wings)w.visible=!sci;
       buildCtx(st);
     }}],
   path:makePath([{u:0,p:[0,.5,16],l:[0,0,0]},{u:1,p:[2.2,.8,12.5],l:[0,0,0]}]),
@@ -1697,6 +1906,35 @@ const BUILDERS=[
       pl.rotation.z=a-Math.PI/2;
       g.add(pl);s.proms.push(pl);
     }
+    /* the zodiacal light: wings of comet dust stretching along the
+       ecliptic — found at a hard left or right glance */
+    s.wings=[];
+    for(const sx of[-1,1]){
+      const w=name(sprite(glowTexture('rgba(255,215,165,.5)','rgba(255,195,130,.12)'),1),
+        'The zodiacal light — sunlight on comet dust',s);
+      w.scale.set(14,2,1);w.position.set(sx*13,sx*.5,4.5);
+      w.material.opacity=.11;g.add(w);s.wings.push(w);
+    }
+    /* Mercury, toasting at a right glance */
+    const mc=name(spin(sphere(.06,TEX.mercury),.02),'Mercury, the Sun’s closest world',s);
+    mc.position.set(10,1.5,9);g.add(mc);
+    /* a sungrazer comet arcs over the corona — the up-reward of the tour */
+    s.grz=new THREE.Group();
+    const gh=name(sprite(glowTexture('rgba(230,245,255,1)','rgba(180,215,255,.35)'),.5),'A sungrazer comet',s);
+    s.grz.add(gh);
+    (function(){
+      const N=42,pp=new Float32Array(N*3);
+      for(let i=0;i<N;i++){const t=(i+1)/N;
+        pp[i*3]=t*4.5;pp[i*3+1]=(h3(i,1,91,3)-.5)*t*.7;pp[i*3+2]=(h3(i,2,91,3)-.5)*t*.7;}
+      const tg=new THREE.BufferGeometry();
+      tg.setAttribute('position',new THREE.Float32BufferAttribute(pp,3));
+      s.grz.add(new THREE.Points(tg,new THREE.PointsMaterial({color:0xbfe0ff,
+        map:glowTexture('rgba(255,255,255,.9)','rgba(255,255,255,0)'),
+        size:.35,sizeAttenuation:true,transparent:true,opacity:.4,
+        blending:THREE.AdditiveBlending,depthWrite:false})));
+    })();
+    g.add(s.grz);
+    const _gx=new THREE.Vector3(1,0,0),_gd=new THREE.Vector3();
     s.update=function(dt){
       /* one continuous clock (GT) whether approaching or arrived — the
          surface never snaps phase when the stop becomes current */
@@ -1709,6 +1947,17 @@ const BUILDERS=[
         pm.scale.set(sc2,sc2,1);
       }
       s.glow.material.opacity=.9+.07*Math.sin(GT*.45);
+      /* sungrazer: 40 s crossing, 15 s rest, tails blown radially outward */
+      const ph2=(GT%55)/40;
+      if(ph2<=1){
+        s.grz.visible=s.glow.visible;      /* hidden in the science view too */
+        s.grz.position.set(-9+18*ph2,7+2*Math.sin(ph2*Math.PI),-2+ph2);
+        _gd.copy(s.grz.position).normalize();
+        s.grz.quaternion.setFromUnitVectors(_gx,_gd);
+        const env=Math.min(1,Math.min(ph2,1-ph2)*8);
+        s.grz.children[0].material.opacity=env;
+        s.grz.children[1].material.opacity=.4*env;
+      }else s.grz.visible=false;
     };
   }
   });
@@ -1826,8 +2075,9 @@ const BUILDERS=[
     {t:'',k:'sub'},
     {t:'Keep looking up.',k:'fin'}],
   facts:[
-    'Voyager 1, launched in 1977, is the farthest human-made object — and it is still calling home.',
+    'Voyager 1, launched in 1977, is the farthest human-made object — and it is still calling home. It glints up and to the left.',
     'From out there, Earth is a single pale blue dot: everyone who ever lived, on one small point of light.',
+    'Every planet you visited tonight is still up there as a point of light — sweep the sky above Earth and find your old friends.',
     'The journey you just took spans about 4.5 billion km. Light crosses it in just over four hours.'],
   path:makePath([{u:0,p:[0,.35,11],l:[0,0,0]},{u:1,p:[0,.28,8.4],l:[0,0,0]}]),
   build(g,st){
@@ -1837,6 +2087,23 @@ const BUILDERS=[
       makeCloudMaterial([6,2.5,4])),.026);
     cl.renderOrder=1;g.add(cl);
     g.add(rim(.85,0x6fa8e8,.1));
+    /* the Moon keeps Earth company one last time */
+    const mo=name(spin(sphere(.23,TEX.moon),.012),'The Moon',st);
+    mo.rotation.y=-1.45;mo.position.set(4.8,.9,-1.5);g.add(mo);
+    /* Voyager, still calling home */
+    const vo=name(sprite(glowTexture('rgba(255,240,220,.95)','rgba(255,225,190,.3)'),.18),'Voyager 1, still calling home',st);
+    vo.position.set(-6,5,-7);vo.scale.set(.3,.3,1);g.add(vo);
+    /* the journey, replayed as stars: every world you visited, strung
+       across the farewell sky as the points of light they really are */
+    const OLD=[['Mars',-9,2,-7,'rgba(255,160,120,.95)','rgba(230,110,80,.35)',.3],
+               ['Jupiter',-4,3.5,-11,'rgba(255,235,205,1)','rgba(235,205,160,.35)',.42],
+               ['Saturn',2,3.8,-12,'rgba(255,228,170,1)','rgba(235,200,130,.35)',.38],
+               ['Uranus',7,2.5,-9,'rgba(175,235,230,.95)','rgba(120,205,200,.35)',.3],
+               ['Neptune',10,1.5,-5,'rgba(150,180,255,.95)','rgba(100,140,235,.35)',.3]];
+    for(const o of OLD){
+      const p=name(sprite(glowTexture(o[4],o[5]),o[6]),o[0]+', a point of light',st);
+      p.position.set(o[1],o[2],o[3]);g.add(p);
+    }
   },
   ctx:[{label:function(){return '\u27F2  Replay the journey';},run:function(){gotoStop(0);}}]
   })]
@@ -1870,7 +2137,7 @@ const LOOK={ty:0,tp:0,   /* target offsets (radians) — written by input   */
             vy:0,vp:0,   /* velocities for coast + return spring          */
             drag:null,   /* live drag {id} or null                        */
             phase:0,     /* 0 idle · 1 drag · 2 hold/coast · 3 ease home  */
-            holdUntil:0,used:false,nudged:false};
+            holdUntil:0,used:false,nudged:false,taught:false};
 const LOOK_YAW_MAX=rad(60),LOOK_PIT_MAX=rad(35);   /* head-turn range at a stop */
 const LOOK_YAW_TR=rad(30),LOOK_PIT_TR=rad(20);     /* tighter out the window in flight */
 const LOOK_PIT_TOTAL=rad(86);                      /* total pitch: no pole flip at the Orbit Map */
@@ -1890,12 +2157,27 @@ function lookRelease(vy,vp){
   LOOK.phase=(LOOK.dy||LOOK.dp||LOOK.vy||LOOK.vp)?2:0;
 }
 function lookHome(){if(LOOK.phase===2)LOOK.holdUntil=0;}   /* explicit action: ease home now */
+/* touching the sky arrests any camera drift on contact — the finger
+   owns the gaze from the first millisecond, even before it moves */
+function lookArrest(){
+  if(LOOK.phase===2||LOOK.phase===3){
+    LOOK.vy=LOOK.vp=0;LOOK.ty=LOOK.dy;LOOK.tp=LOOK.dp;
+    LOOK.phase=(LOOK.dy||LOOK.dp)?2:0;
+    if(LOOK.phase===2)LOOK.holdUntil=Infinity;
+  }
+}
+function lookUnarrest(){
+  if(LOOK.phase===2&&LOOK.holdUntil===Infinity)lookRelease(0,0);
+}
 function lookReset(){LOOK.ty=LOOK.tp=LOOK.dy=LOOK.dp=LOOK.vy=LOOK.vp=0;LOOK.phase=LOOK.drag?1:0;}
 function updateLook(dt){
   if(LOOK.phase===0)return;
   if(LOOK.phase===1){                                   /* follow the finger, film-head lag */
     const k=1-Math.exp(-dt/LOOK_TAU_DRAG);
     LOOK.dy+=(LOOK.ty-LOOK.dy)*k;LOOK.dp+=(LOOK.tp-LOOK.dp)*k;
+    /* the first held look of the session arms the answer meteor */
+    if(!METEOR.ansDone&&!METEOR.ans&&LOOK.dragT&&performance.now()-LOOK.dragT>2000)
+      METEOR.ans=performance.now()+6000+Math.random()*4000;
     return;
   }
   if(LOOK.phase===2){                                   /* brief coast, then hold the gaze */
@@ -1905,10 +2187,11 @@ function updateLook(dt){
     LOOK.dy=Math.max(-LOOK_YAW_MAX,Math.min(LOOK_YAW_MAX,LOOK.dy));
     LOOK.dp=Math.max(-LOOK_PIT_MAX,Math.min(LOOK_PIT_MAX,LOOK.dp));
     LOOK.ty=LOOK.dy;LOOK.tp=LOOK.dp;
-    /* paused = the visitor's "let me look": hold until play/travel.
-       reduced motion: never a timer — but an explicit lookHome()
-       (play, travel) always sends it home, RM and paused included */
-    if(LOOK.holdUntil===0||(performance.now()>=LOOK.holdUntil&&(playing||TR)&&!RM))LOOK.phase=3;
+    /* at a stop the view STAYS where the visitor pointed it — the app
+       never fights the finger. The timer return runs only in flight
+       (arrivals are authored); an explicit lookHome() (play, travel)
+       always sends it home, reduced-motion and paused included */
+    if(LOOK.holdUntil===0||(performance.now()>=LOOK.holdUntil&&TR&&!RM))LOOK.phase=3;
     return;
   }
   const w=LOOK_W_RET;                                   /* critically damped ease home */
@@ -2141,6 +2424,87 @@ function cometUpdate(q){
   COMET.g.lookAt(px+_v.x,py+_v.y,pz+_v.z);
 }
 function cometHide(){if(COMET.on){COMET.on=false;COMET.g.visible=false;}}
+
+/* ================================================================
+   SHOOTING STARS — the sky rewards patient lookers. And once per
+   session, the first held look is answered: a meteor falls near
+   wherever the visitor happens to be gazing.
+================================================================ */
+const METEOR={on:false,t:0,dur:1,head:null,tail:null,next:0,ans:0,ansDone:false,
+  p0:new THREE.Vector3(),p1:new THREE.Vector3(),_p:new THREE.Vector3(),
+  _d:new THREE.Vector3(),_s:new THREE.Vector3()};
+function meteorSpawn(nearGaze){
+  if(!window.__stars)return;
+  if(!METEOR.head){
+    const mkm=(w,h)=>{const sp=new THREE.Sprite(new THREE.SpriteMaterial({
+      map:glowTexture('rgba(223,234,255,.95)','rgba(190,210,255,.2)'),
+      transparent:true,opacity:0,blending:THREE.AdditiveBlending,depthWrite:false}));
+      sp.scale.set(w,h,1);window.__stars.add(sp);return sp;};
+    METEOR.head=mkm(3,3);METEOR.tail=mkm(15,1.3);
+  }
+  let yaw,pit;
+  if(nearGaze){
+    camera.getWorldDirection(METEOR._d);
+    yaw=Math.atan2(METEOR._d.x,-METEOR._d.z)+(Math.random()-.5)*.5;
+    pit=Math.asin(Math.max(-1,Math.min(1,METEOR._d.y)))+(Math.random()-.2)*.35;
+  }else{
+    yaw=(Math.random()<.5?-1:1)*(.44+Math.random()*.78);   /* 25–70° off forward */
+    pit=(Math.random()-.5)*1.0;
+  }
+  const cp=Math.cos(pit);
+  METEOR._d.set(Math.sin(yaw)*cp,Math.sin(pit),-Math.cos(yaw)*cp);
+  METEOR._s.set(Math.random()-.5,Math.random()-.5,Math.random()-.5)
+    .cross(METEOR._d).normalize();
+  METEOR.p0.copy(METEOR._d).addScaledVector(METEOR._s,-.13).normalize().multiplyScalar(780);
+  METEOR.p1.copy(METEOR._d).addScaledVector(METEOR._s,.13).normalize().multiplyScalar(780);
+  METEOR.dur=.7+Math.random()*.3;
+  METEOR.t=0;METEOR.on=true;
+}
+const _mA=new THREE.Vector3(),_mB=new THREE.Vector3();
+function meteorTick(now,dt){
+  if(METEOR.on){
+    METEOR.t+=dt;
+    const q=Math.min(1,METEOR.t/METEOR.dur);
+    METEOR._p.lerpVectors(METEOR.p0,METEOR.p1,q);
+    METEOR.head.position.copy(METEOR._p);
+    METEOR._d.subVectors(METEOR.p1,METEOR.p0).normalize();
+    METEOR.tail.position.copy(METEOR._p).addScaledVector(METEOR._d,-9);
+    /* elongate the tail along the on-screen motion direction */
+    _mA.copy(METEOR._p).add(window.__stars.position).project(camera);
+    _mB.copy(METEOR.tail.position).add(window.__stars.position).project(camera);
+    METEOR.tail.material.rotation=Math.atan2((_mA.y-_mB.y)/2,(_mA.x-_mB.x)*camera.aspect/2);
+    const env=Math.min(q/.15,(1-q)/.35,1)*.7;
+    METEOR.head.material.opacity=env;
+    METEOR.tail.material.opacity=env*.8;
+    if(q>=1){METEOR.on=false;METEOR.head.material.opacity=METEOR.tail.material.opacity=0;}
+    return;
+  }
+  if(TR||trans||!playing||RM||document.hidden||cur<0||cur===10||cur===12)return;
+  if(METEOR.ans&&now>=METEOR.ans){METEOR.ans=0;METEOR.ansDone=true;meteorSpawn(true);return;}
+  if(!METEOR.next){METEOR.next=now+(25+Math.random()*25)*1000;return;}
+  if(now>=METEOR.next&&stopClock>8){
+    meteorSpawn(false);
+    METEOR.next=now+(50+Math.random()*50)*1000;
+  }
+}
+/* wonders announce themselves once: a quiet chord when an actively
+   looking visitor brings one near screen center */
+const _wv=new THREE.Vector3();
+let _wLast=0;
+const _wSeen=new Set();
+function wonderTick(now){
+  if(!window.__skyWonders||!(LOOK.phase===1||LOOK.phase===2))return;
+  if(now-_wLast<20000)return;
+  for(const w of window.__skyWonders){
+    if(_wSeen.has(w.nm))continue;
+    w.o.getWorldPosition(_wv);_wv.project(camera);
+    if(_wv.z<1&&Math.abs(_wv.x)<.45&&Math.abs(_wv.y)<.45){
+      _wSeen.add(w.nm);_wLast=now;
+      audio.shimmer(cur);
+      break;
+    }
+  }
+}
 function finishTransit(){
   cometHide();
   const j=TR.to;TR=null;
@@ -2171,6 +2535,18 @@ function gotoStop(i,instant){
 
 /* hover tooltips (mouse only; touch names worlds on tap below) */
 const ray=new THREE.Raycaster();const ndc=new THREE.Vector2();
+/* the deep sky is nameable too: nearest wonder within r px of the pointer */
+function wonderAt(x,y,r){
+  if(!window.__skyWonders)return null;
+  let best=null,bd=r;
+  for(const w of window.__skyWonders){
+    w.o.getWorldPosition(_v);_v.project(camera);
+    if(_v.z>=1)continue;
+    const d=Math.hypot((_v.x*.5+.5)*innerWidth-x,(-_v.y*.5+.5)*innerHeight-y);
+    if(d<bd){bd=d;best=w;}
+  }
+  return best;
+}
 addEventListener('pointermove',function(e){
   if(e.pointerType&&e.pointerType!=='mouse')return;
   if(LOOK.drag)return hideTip();          /* no tooltip churn mid-drag */
@@ -2183,7 +2559,15 @@ addEventListener('pointermove',function(e){
     tipEl.classList.remove('touch');
     tipEl.style.left=e.clientX+'px';tipEl.style.top=e.clientY+'px';
     tipEl.classList.add('on');
-  }else hideTip();
+  }else{
+    const w=wonderAt(e.clientX,e.clientY,26);
+    if(w){
+      tipEl.textContent=w.nm;
+      tipEl.classList.remove('touch');
+      tipEl.style.left=e.clientX+'px';tipEl.style.top=e.clientY+'px';
+      tipEl.classList.add('on');
+    }else hideTip();
+  }
 });
 
 /* touch: swipe to travel, tap a world for its name.
@@ -2204,6 +2588,10 @@ function tapHit(x,y){
     const d=Math.hypot((_v.x*.5+.5)*innerWidth-x,(-_v.y*.5+.5)*innerHeight-y);
     if(d<bd){bd=d;best=o;}
   }
+  if(!best){
+    const w=wonderAt(x,y,44);
+    if(w)return{userData:{name:w.nm}};
+  }
   return best;
 }
 skyEl.addEventListener('pointerdown',function(e){
@@ -2211,40 +2599,46 @@ skyEl.addEventListener('pointerdown',function(e){
   if(e.pointerType==='mouse'){
     /* desktop: left-button drag on the sky is free-look */
     if(e.button!==0||cur<0||sw)return;
+    lookArrest();
     sw={id:e.pointerId,x0:e.clientX,y0:e.clientY,t0:performance.now(),
         mouse:true,mode:'pend',lx:e.clientX,ly:e.clientY,hist:null,dead:false};
     try{skyEl.setPointerCapture(e.pointerId);}catch(_){}
     return;
   }
-  if(sw){sw.dead=true;                    /* second finger: not a gesture */
+  if(sw){
+    /* second finger: the pair becomes a travel gesture — one finger
+       looks, two fingers swipe between stops */
+    if(sw.mode==='two'||sw.dead)return;
     if(LOOK.drag&&sw.mode==='look')lookRelease(0,0);
-    return;}
+    sw.mode='two';sw.id2=e.pointerId;
+    sw.x2=e.clientX;sw.y2=e.clientY;
+    sw.c0x=(sw.lx+sw.x2)/2;sw.c0y=(sw.ly+sw.y2)/2;sw.t2=performance.now();
+    document.body.classList.remove('dragging');
+    return;
+  }
+  lookArrest();                           /* touching the sky stops any camera drift */
   sw={id:e.pointerId,x0:e.clientX,y0:e.clientY,t0:performance.now(),
       mode:'pend',lx:e.clientX,ly:e.clientY,hist:null,
       dead:(e.clientX<24||e.clientX>innerWidth-24)}; /* iOS edge-swipe zones */
   try{skyEl.setPointerCapture(e.pointerId);}catch(_){}
 });
-/* the decide window: a stroke that is promptly horizontal is a travel
-   swipe (release decides, as always); a tap stays a tap; anything else
-   ≥ the tap radius becomes look — a child's smear always maps to the
-   safe, reversible action */
+/* one finger on the sky always means look — there is no classifier to
+   guess against a child's smear. Travel lives on the buttons, the dots,
+   the arrow keys, and a two-finger swipe. */
 addEventListener('pointermove',function(e){
-  if(!sw||e.pointerId!==sw.id||sw.dead)return;
+  if(!sw||sw.dead)return;
   const now2=performance.now();
-  if(sw.mode==='pend'){
-    const ax=Math.abs(e.clientX-sw.x0),ay=Math.abs(e.clientY-sw.y0);
-    const d=Math.hypot(e.clientX-sw.x0,e.clientY-sw.y0),el=now2-sw.t0;
-    if(d<(sw.mouse?4:12))return;                       /* still a click/tap */
-    if(!sw.mouse&&el<=180&&ax>=1.6*ay){sw.mode='swipe';return;}
-    if(cur<0){sw.mode='swipe';return;}
-    beginLook(e,now2);
+  if(sw.mode==='two'){
+    if(e.pointerId===sw.id){sw.lx=e.clientX;sw.ly=e.clientY;}
+    else if(e.pointerId===sw.id2){sw.x2=e.clientX;sw.y2=e.clientY;}
     return;
   }
-  if(sw.mode==='swipe'){
-    /* a swipe candidate that is provably too slow to ever qualify as
-       travel demotes to look mid-stroke: a slow smear always looks */
-    const el=now2-sw.t0,ax=Math.abs(e.clientX-sw.x0);
-    if(el>280&&ax/el<.35)beginLook(e,now2);
+  if(e.pointerId!==sw.id)return;
+  if(sw.mode==='pend'){
+    const d=Math.hypot(e.clientX-sw.x0,e.clientY-sw.y0);
+    if(d<(sw.mouse?4:10))return;                       /* still a click/tap */
+    if(cur<0){sw.dead=true;return;}                    /* pre-tour strokes are inert */
+    beginLook(e,now2);
     return;
   }
   if(sw.mode!=='look')return;
@@ -2262,7 +2656,7 @@ function beginLook(e,now2){
   sw.mode='look';
   hideTip();
   LOOK.ty=LOOK.dy;LOOK.tp=LOOK.dp;   /* catch the gaze where it is — no snap to a stale target */
-  LOOK.drag=true;LOOK.phase=1;LOOK.used=true;
+  LOOK.drag=true;LOOK.phase=1;LOOK.used=true;LOOK.dragT=performance.now();
   document.body.classList.add('dragging');
   sw.lx=e.clientX;sw.ly=e.clientY;sw.hist=[{t:now2,x:e.clientX,y:e.clientY}];
 }
@@ -2283,24 +2677,43 @@ function endLookDrag(g,e){
    didn't take and the button lifts over the dots or a control, the
    gesture must still end — a stuck drag would hold the tour clock */
 addEventListener('pointercancel',function(e){
-  if(sw&&e.pointerId===sw.id){           /* OS stole the gesture */
+  if(sw&&(e.pointerId===sw.id||e.pointerId===sw.id2)){   /* OS stole the gesture */
     if(LOOK.drag&&sw.mode==='look')lookRelease(0,0);
+    else lookUnarrest();
     sw=null;
   }
 });
 addEventListener('pointerup',function(e){
-  if(!sw||e.pointerId!==sw.id)return;
+  if(!sw)return;
+  if(sw.mode==='two'){
+    if(e.pointerId!==sw.id&&e.pointerId!==sw.id2)return;
+    const g=sw;sw=null;
+    if(e.pointerId===g.id){g.lx=e.clientX;g.ly=e.clientY;}else{g.x2=e.clientX;g.y2=e.clientY;}
+    const dxc=(g.lx+g.x2)/2-g.c0x,ayc=Math.abs((g.ly+g.y2)/2-g.c0y);
+    const el2=performance.now()-g.t2;
+    if(Math.abs(dxc)>=60&&Math.abs(dxc)>=1.6*ayc&&el2<=600){
+      hintFade();
+      gotoStop(dxc<0?cur+1:cur-1);
+    }else lookUnarrest();
+    return;
+  }
+  if(e.pointerId!==sw.id)return;
   const g=sw;sw=null;
-  if(g.mode==='look'){endLookDrag(g,e);return;}
+  if(g.mode==='look'){
+    endLookDrag(g,e);
+    /* an old-habit travel swipe now looks instead — teach the new verb once */
+    const ax=Math.abs(e.clientX-g.x0),ay=Math.abs(e.clientY-g.y0);
+    const el=performance.now()-g.t0;
+    if(!g.mouse&&!LOOK.taught&&ax>=100&&ax/el>=.6&&ax>=2*ay){
+      LOOK.taught=true;
+      showCap({t:'to travel: tap ◂ ▸ below, or swipe with two fingers',k:'note'});
+    }
+    return;
+  }
+  lookUnarrest();                          /* a tap or dead stroke re-arms a held gaze */
   if(g.dead||g.mouse)return;
   const dx=e.clientX-g.x0,dy=e.clientY-g.y0,el=performance.now()-g.t0;
-  const ax=Math.abs(dx),ay=Math.abs(dy);
-  const swipe=(el<=700&&ax>=Math.max(48,innerWidth*.12)&&ax>=1.6*ay)||
-              (ax>=32&&ax/el>=.45&&ax>=1.6*ay);   /* deliberate or flick */
-  if(swipe){
-    hintFade();
-    gotoStop(dx<0?cur+1:cur-1);
-  }else if(el<400&&Math.hypot(dx,dy)<12){
+  if(el<400&&Math.hypot(dx,dy)<12){
     if(factsOpen){closeFacts(false);return;}      /* tap outside closes notes */
     if(cur<0||trans||TR)return;
     const o=tapHit(e.clientX,e.clientY);
@@ -2344,6 +2757,7 @@ function tick(now){
   const jdt=dt*SPD;
   if(cur<0)return;
   updateLook(dt);              /* real dt: look feel ignores the speed control */
+  meteorTick(now,dt);wonderTick(now);
   if(playing)GT+=jdt;
   /* every visible scene keeps living */
   for(let i2=0;i2<stops.length;i2++){const s2=stops[i2];
@@ -2422,7 +2836,7 @@ function tick(now){
         /* one quiet lesson, once per session, at Uranus — skipped for
            anyone who has already looked around, and on pointerless TVs */
         if(st.name==='Uranus'&&idx===1&&!LOOK.used&&!LOOK.nudged&&!NOPOINTER){
-          LOOK.nudged=true;cp={t:'you can look around — just drag the sky',k:'note'};
+          LOOK.nudged=true;cp={t:'psst — you can look around. drag the sky: a golden galaxy hides off to your right',k:'note'};
         }
         showCap(cp);}
     }
@@ -2857,6 +3271,22 @@ const audio={ctx:null,on:false,master:null,verb:null,lp:null,voices:null,wgain:n
     o.connect(g);g.connect(this.master);
     const s=this.ctx.createGain();s.gain.value=.6;g.connect(s);s.connect(this.verb);
     o.start(t);o.stop(t+3.1);
+  },
+  /* a single quiet chord when a looker finds a wonder — stays in the
+     stop's key, rides the master (inherits mute and hide fades) */
+  shimmer:function(i){
+    if(!this.ctx||!this.on||!KEYS[i])return;
+    const t=this.ctx.currentTime,base=(KEYS[i][0][2]||KEYS[i][0][0]*2)*2;
+    for(const [f,gv] of [[base,.045],[base*1.5,.03]]){
+      const o=this.ctx.createOscillator();o.type='sine';o.frequency.value=f;
+      const g=this.ctx.createGain();
+      g.gain.setValueAtTime(0,t);
+      g.gain.linearRampToValueAtTime(gv,t+.3);
+      g.gain.exponentialRampToValueAtTime(.0001,t+2.5);
+      o.connect(g);g.connect(this.master);
+      const s=this.ctx.createGain();s.gain.value=.8;g.connect(s);s.connect(this.verb);
+      o.start(t);o.stop(t+2.6);
+    }
   }
 };
 document.addEventListener('visibilitychange',function(){
@@ -2988,8 +3418,8 @@ addEventListener('keydown',function(e){
 ================================================================ */
 const loadmsg=document.getElementById('loadmsg');
 if(COARSE){
-  document.getElementById('hintkeys').textContent='swipe to travel · drag to look around · tap a world for its name · ✦ facts';
-  document.querySelector('#splash .keys').textContent='Sit back — the tour plays itself. Swipe to travel, drag the sky to look around. Tap ✦ for field notes.';
+  document.getElementById('hintkeys').textContent='drag the sky to look around · two-finger swipe to travel · tap a world for its name';
+  document.querySelector('#splash .keys').textContent='Sit back — the tour plays itself. Drag the sky to look around. Travel with ◂ ▸, the dots, or a two-finger swipe.';
 }
 let started=false;
 let prepP=null;

@@ -17,10 +17,11 @@ Each stop plays out as a slow camera move with film-style captions. Let it run a
 - **Fully self-hosted.** No CDNs, no third-party requests: three.js, the fonts, and the planet maps all live in this repo. The page is interactive in about a second; high-resolution textures stream in behind the procedurally painted planets.
 - **Generative score.** No audio files: a four-voice Web Audio drone whose harmony warms and brightens as you fall sunward, a filtered-noise whoosh during flights between worlds, and a soft arrival tone at each stop. Toggle with the music button or <kbd>m</kbd>.
 - **Living scenes.** Storm bands on Jupiter, Saturn's rings with orbiting moons, a dense asteroid belt, city lights on Earth's night side, solar prominences, a passing comet — plus a false-color science view of the Sun.
-- **A deep sky.** Thousands of layered stars, the Milky Way with its dust lanes, and a handful of distant galaxies.
+- **A deep sky.** Thousands of layered stars, the Milky Way with its glowing core and dust lanes, colorful galaxies — one seen edge-on, two colliding — and nebulae where stars are born.
 - **Field notes.** An opt-in "Did you know?" layer: three or four curated facts per stop, one at a time, in a quiet card that holds the tour while you read.
-- **Free-look.** Drag the sky — mouse or finger — to look around while the camera keeps riding its authored path; let go and the gaze drifts back to the film. Works at every stop and even mid-flight.
-- **Made for touch too.** Swipe to travel, drag to look, tap a world for its name, and a safe-area-aware layout.
+- **Free-look.** Drag the sky — mouse or finger — to look around while the camera keeps riding its authored path. The view stays where you point it; travel brings it home. Works at every stop and even mid-flight.
+- **A sky worth turning for.** Moons scattered all around your head at every world, tinted galaxies and painted nebulae off in the dark, star clusters, a breathing variable star, shooting stars for patient watchers, a sungrazer comet at the Sun — all of it nameable with a hover or a tap, and the first held look of a session gets a quiet answer.
+- **Made for touch too.** Drag to look, two-finger swipe to travel, tap a world for its name, and a safe-area-aware layout.
 - **Accessible by design.** Keyboard navigation throughout, hover any world for its name, and `prefers-reduced-motion` starts the tour paused so visitors move at their own pace.
 
 ## Controls
@@ -33,9 +34,9 @@ Each stop plays out as a slow camera move with film-style captions. Let it run a
 | <kbd>f</kbd> | Cycle travel speed (1× / 2× / 4×) |
 | <kbd>m</kbd> | Toggle music |
 | Dots (top center) | Jump to any stop |
-| Drag the sky | Look around from where you are — release to drift back |
+| Drag the sky | Look around from where you are — the view is yours until you travel |
 | Mouse hover / tap | Name the world under the cursor or finger |
-| Swipe left / right | Travel between stops (touch screens) |
+| Two-finger swipe | Travel between stops (touch screens) |
 
 ## Running locally
 
