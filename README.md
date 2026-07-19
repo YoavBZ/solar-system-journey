@@ -15,7 +15,7 @@ Each stop plays out as a slow camera move with film-style captions. Let it run a
 ## Features
 
 - **Fully self-hosted.** No CDNs, no third-party requests: three.js, the fonts, and the planet maps all live in this repo. The page is interactive in about a second; high-resolution textures stream in behind the procedurally painted planets.
-- **Generative score.** No audio files: a four-voice Web Audio drone whose harmony warms and brightens as you fall sunward, a filtered-noise whoosh during flights between worlds, and a soft arrival tone at each stop. Toggle with the music button or <kbd>m</kbd>.
+- **Generative score.** No audio files: a slow-breathing Web Audio pad choir — each voice a softly detuned three-oscillator chorus — over a felt-more-than-heard sub root, inside a hand-built hall whose tail darkens like a real room. Sparse celesta bells wander each stop's scale, the harmony earns its first major third at Saturn and blooms into a major seventh at the Sun, a dark breath of pink noise carries flights between worlds, and a two-tone call marks each arrival. Toggle with the music button or <kbd>m</kbd>.
 - **Living scenes.** Storm bands on Jupiter, Saturn's rings with orbiting moons, a dense asteroid belt, city lights on Earth's night side, solar prominences, a passing comet — plus a false-color science view of the Sun.
 - **A deep sky.** Thousands of layered stars, the Milky Way with its glowing core and dust lanes, colorful galaxies — one seen edge-on, two colliding — and nebulae where stars are born.
 - **Field notes.** An opt-in "Did you know?" layer: three or four curated facts per stop, one at a time, in a quiet card that holds the tour while you read.
