@@ -1,6 +1,6 @@
 # Journey Through the Solar System
 
-A cinematic WebGL tour from the cold edge of the solar system down to the Sun — fourteen stops, a generative ambient score, and nothing to install. A small static site with no build step and no third-party dependencies.
+A cinematic WebGL tour from the cold edge of the solar system down to the Sun — fourteen stops, a five-chapter ambient score, and nothing to install. A small static site with no build step and no third-party dependencies.
 
 **[▶ Take the journey](https://yoavbz.github.io/solar-system-journey/)**
 
@@ -15,7 +15,8 @@ Each stop plays out as a slow camera move with film-style captions. Let it run a
 ## Features
 
 - **Fully self-hosted.** No CDNs, no third-party requests: three.js, the fonts, and the planet maps all live in this repo. The page is interactive in about a second; high-resolution textures stream in behind the procedurally painted planets.
-- **Generative score.** No audio files: a slow-breathing Web Audio pad choir — each voice a softly detuned three-oscillator chorus — over a felt-more-than-heard sub root, inside a hand-built hall whose tail darkens like a real room. Sparse celesta bells wander each stop's scale, the harmony earns its first major third at Saturn and blooms into a major seventh at the Sun, a dark breath of pink noise carries flights between worlds, and a two-tone call marks each arrival. Toggle with the music button or <kbd>m</kbd>.
+- **A real score, with a living skin.** The journey is scored in five chapters — the cold edge, the giants, the rocky worlds, the Sun, and a quiet epilogue — using space-ambient music by [Stellardrone](https://stellardrone.bandcamp.com/) (CC BY), trimmed and loudness-matched to be heard the way you'll hear it: softly, under starlight. When you reach Earth, a distant piano plays the most famous moon-music ever written — Debussy's *Clair de lune*. On top of the recordings, the site's own Web Audio engine still performs everything a recording can't: the rush of each flight, a two-tone call on every arrival, and a sprinkle of bells when you spot something hidden in the sky — voiced from the key of whatever's playing. Toggle it all with the music button or <kbd>m</kbd>.
+- **Still sings with no files at all.** Offline, on `file://`, or with data-saver on, a fully generative score takes over seamlessly — a slow-breathing pad choir, sparse celesta, and a harmony that earns its first major third at Saturn and blooms into a major seventh at the Sun. If you never noticed the swap, it worked.
 - **Living scenes.** Storm bands on Jupiter, Saturn's rings with orbiting moons, a dense asteroid belt, city lights on Earth's night side, solar prominences, a passing comet — plus a false-color science view of the Sun.
 - **A deep sky.** Thousands of layered stars, the Milky Way with its glowing core and dust lanes, colorful galaxies — one seen edge-on, two colliding — and nebulae where stars are born.
 - **Field notes.** An opt-in "Did you know?" layer: three or four curated facts per stop, one at a time, in a quiet card that holds the tour while you read.
@@ -53,3 +54,5 @@ python3 -m http.server
 ## Credits
 
 Planet and moon maps by [Solar System Scope](https://www.solarsystemscope.com/textures/) ([CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)), based on NASA imagery. Space Station render by [NASA](https://commons.wikimedia.org/wiki/File:ISS_spacecraft_model_1.png) (public domain). Rendered with [three.js](https://threejs.org/) r128.
+
+Chapter beds by [Stellardrone](https://stellardrone.bandcamp.com/) — *Ethereal*, *The Belt of Orion*, *Pale Blue Dot*, *Journey to the Sun*, *The Edge of Forever* — licensed [CC BY](https://creativecommons.org/licenses/by/3.0/), trimmed and loudness-matched for quiet playback (loop edits by this project). *Clair de lune* by Claude Debussy (public domain), performed by Laurens Goedhart ([CC BY 3.0](https://creativecommons.org/licenses/by/3.0/), via Wikimedia Commons). When the network is away, the music is generated live in your browser — no files, no samples, just math.

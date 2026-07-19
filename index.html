@@ -3171,7 +3171,7 @@ let hdCount=0;
 function creditOn(){
   if(hdCount!==1)return;
   const c=document.getElementById('credit');
-  c.textContent='Planet maps: Solar System Scope (CC BY 4.0) · NASA-derived';
+  c.textContent='Planet maps: Solar System Scope (CC BY 4.0) · NASA-derived · Music: Stellardrone (CC BY)';
   c.classList.add('on');
 }
 async function upgradeHD(){
@@ -3308,7 +3308,25 @@ const SCORE=[
   {f:[146.83,220,246.94,369.99],  sub:73.42,subG:.14,bright:.55,scale:[293.66,329.63,369.99,440,493.88],  gap:[9,15]},  /* Planet Sizes — D6/9       */
   {f:[164.81,246.94,293.66,415.3],sub:82.41,subG:.14,bright:.50,scale:[493.88,587.33,659.25,830.61],      gap:[9,15]},  /* Orbit Map — E7, onward    */
   {f:[110,164.81,277.18,329.63],  sub:55,   subG:.14,bright:.42,scale:[440,554.37,659.25],                gap:[11,18]}];/* Farewell — A major, rest  */
-const audio={ctx:null,on:false,master:null,verb:null,voices:null,padBus:null,
+/* ---- recorded chapter beds — the fabric of the score. The engine
+   below becomes the interactive skin (whoosh, arrivals, shimmers)
+   and the complete offline understudy. Five chapters, resumable,
+   seam-baked for gapless looping; one featured piano moment at
+   Earth. Dual format: Opus for most browsers, AAC for Safari. ---- */
+const MUSIC={
+  chap:[0,0,0,1,1,1,2,2,2,2,3,4,4,4],
+  beds:[
+    {url:'assets/audio/ch1-the-edge',        rootHz:92.5, loopStart:42,loopEnd:184.5,xf:5}, /* Stellardrone — Ethereal (F#)          */
+    {url:'assets/audio/ch2-the-giants',      rootHz:87.31,loopStart:42,loopEnd:179,  xf:5}, /* Stellardrone — The Belt of Orion (F)  */
+    {url:'assets/audio/ch3-the-rocky-worlds',rootHz:73.42,loopStart:57,loopEnd:185,  xf:5}, /* Stellardrone — Pale Blue Dot (D)      */
+    {url:'assets/audio/ch4-the-sun',         rootHz:73.42,loopStart:62,loopEnd:224,  xf:5}, /* Stellardrone — Journey to the Sun (D) */
+    {url:'assets/audio/ch5-epilogue',        rootHz:69.3, loopStart:38,loopEnd:218,  xf:5}],/* Stellardrone — The Edge of Forever (C#)*/
+  feature:{stop:7,url:'assets/audio/clair-de-lune',delay:2.5,duck:.5,cooldown:60},          /* Debussy — Clair de lune (Goedhart)    */
+  ok:location.protocol!=='file:'&&!(navigator.connection&&navigator.connection.saveData),
+  fmt:(function(){try{return new Audio().canPlayType('audio/ogg; codecs="opus"')?'.ogg':'.m4a';}catch(e){return '.m4a';}})()};
+const XF_IN=new Float32Array(33),XF_OUT=new Float32Array(33);
+for(let i=0;i<33;i++){const th=(i/32)*Math.PI/2;XF_IN[i]=Math.sin(th);XF_OUT[i]=Math.cos(th);}
+const audio={ctx:null,on:false,master:null,verb:null,voices:null,padBus:null,airG:null,_bedOn:false,
   sub:null,subG:null,airLP:null,wgain:null,wlp:null,wpan:null,bellWave:null,
   _comp:null,_noteCount:0,_bellPan:0,_stop:0,_transitUntil:0,_nextNote:0,_nextSwell:0,_zz:0,
   _pan:function(v){
@@ -3403,7 +3421,7 @@ const audio={ctx:null,on:false,master:null,verb:null,voices:null,padBus:null,
     const asrc=ctx.createBufferSource();asrc.buffer=abuf;asrc.loop=true;
     this.airLP=ctx.createBiquadFilter();this.airLP.type='lowpass';
     this.airLP.frequency.value=280+320*S0.bright;this.airLP.Q.value=.5;
-    const ag=ctx.createGain();ag.gain.value=.012;
+    const ag=ctx.createGain();ag.gain.value=.012;this.airG=ag;
     asrc.connect(this.airLP);this.airLP.connect(ag);
     const np=this._pan(0);
     if(np){ag.connect(np);np.connect(this.master);
@@ -3433,6 +3451,7 @@ const audio={ctx:null,on:false,master:null,verb:null,voices:null,padBus:null,
     this._nextSwell=ctx.currentTime+14;
     const me=this;
     this._tick=setInterval(function(){me._sched();},250);
+    bed.init(this);
   },
   /* one soft tone — the celesta every layer shares */
   _note:function(f,t,peak,att,tau,send,pan){
@@ -3453,6 +3472,7 @@ const audio={ctx:null,on:false,master:null,verb:null,voices:null,padBus:null,
      22-40 s the whole choir inhales. Nothing loops, ever. */
   _sched:function(){
     if(!this.on||!this.ctx||this.ctx.state!=='running')return;
+    if(this._bedOn)return;   /* the recording owns melodic interest */
     const t=this.ctx.currentTime,S=SCORE[this._stop]||SCORE[0];
     if(this._nextNote<t+.5){
       const tn=Math.max(this._nextNote,t+.05),sc=S.scale;
@@ -3500,6 +3520,7 @@ const audio={ctx:null,on:false,master:null,verb:null,voices:null,padBus:null,
       this.subG.gain.setTargetAtTime(S.subG,t,k);}
     else this.subG.gain.setTargetAtTime(0,t,k);
     this.airLP.frequency.setTargetAtTime(280+320*S.bright,t,k*1.4);
+    bed.stop(i,glide);
   },
   whoosh:function(dur){
     if(!this.ctx||!this.on)return;
@@ -3520,6 +3541,7 @@ const audio={ctx:null,on:false,master:null,verb:null,voices:null,padBus:null,
     pb.cancelScheduledValues(t);pb.setValueAtTime(pb.value,t);
     pb.linearRampToValueAtTime(1,t+d*.2);
     pb.linearRampToValueAtTime(.9,t+d);
+    bed.duckFor(d);
     this._transitUntil=t+d;
   },
   setOn:function(v){
@@ -3531,13 +3553,14 @@ const audio={ctx:null,on:false,master:null,verb:null,voices:null,padBus:null,
     const t=this.ctx.currentTime;
     this.master.gain.cancelScheduledValues(t);
     this.master.gain.setTargetAtTime(v?.055:0,t,1.2);
+    if(v)bed.wake();
     if(!v){const me=this;this._zz=setTimeout(function(){
       if(!me.on&&me.ctx.state==='running')me.ctx.suspend();},6500);}
   },
   /* a two-tone "we're here": root's octave, answered by its fifth */
   arrive:function(i){
     if(!this.ctx||!this.on||!SCORE[i])return;
-    const t=this.ctx.currentTime,r=SCORE[i].f[0]||110;
+    const t=this.ctx.currentTime,r=bed.rootHz()||SCORE[i].f[0]||110;
     this._note(r*2,t,.14,.5,1.4,.45,0);
     this._note(r*3,t+.45,.09,.35,1.2,.45,.2);
   },
@@ -3545,12 +3568,200 @@ const audio={ctx:null,on:false,master:null,verb:null,voices:null,padBus:null,
      its pure fifth, its pure ninth — staggered, mostly reverb */
   shimmer:function(i){
     if(!this.ctx||!this.on||!SCORE[i])return;
-    const t=this.ctx.currentTime,r=SCORE[i].f[0]||110;
+    const t=this.ctx.currentTime,r=bed.rootHz()||SCORE[i].f[0]||110;
     this._note(r*4,t,.04,.02,.8+.3*Math.random(),.7,-.25);
     this._note(r*6,t+.09,.032,.02,.9,.7,.25);
     this._note(r*9,t+.19,.025,.02,1.1,.7,0);
   }
 };
+/* ---- the bed player: fetch → decode → downsample → seam-bake →
+   loop, with resumable per-chapter playheads and equal-power
+   crossfades on the flight/fader timings. Rides audio.master, so
+   mute, tab-hide, and the compressor govern it for free. ---- */
+const bed={
+  a:null,ctx:null,bus:null,duckG:null,gA:null,gB:null,srcA:null,srcB:null,
+  bufs:{},reqs:{},pos:{},cur:-1,slot:0,_want:-1,_startedAt:0,_startedOff:0,
+  featG:null,featSrc:null,featBuf:null,featReq:null,featEnd:-1e9,
+  init:function(a){
+    this.a=a;this.ctx=a.ctx;
+    if(!MUSIC.ok||!this.ctx)return;
+    this.bus=this.ctx.createGain();
+    this.duckG=this.ctx.createGain();
+    this.bus.connect(this.duckG);this.duckG.connect(a.master);
+    this.gA=this.ctx.createGain();this.gA.gain.value=0;this.gA.connect(this.bus);
+    this.gB=this.ctx.createGain();this.gB.gain.value=0;this.gB.connect(this.bus);
+    this.featG=this.ctx.createGain();this.featG.gain.value=0;this.featG.connect(this.bus);
+  },
+  rootHz:function(){
+    return (this.cur>=0&&this.a&&this.a._bedOn&&MUSIC.beds[this.cur])?MUSIC.beds[this.cur].rootHz:0;
+  },
+  /* decoded buffers are big — downsample to 24 kHz (plenty for dark
+     ambient at whisper level) and keep at most current + next */
+  _shrink:function(buf){
+    const rate=24000;
+    if(buf.sampleRate<=rate)return buf;
+    const n=Math.floor(buf.duration*rate),k=buf.sampleRate/rate;
+    const out=this.ctx.createBuffer(2,n,rate);
+    for(let ch=0;ch<2;ch++){
+      const src=buf.getChannelData(Math.min(ch,buf.numberOfChannels-1)),d=out.getChannelData(ch);
+      for(let i=0;i<n;i++){
+        const x=i*k,j=x|0,f=x-j;
+        d[i]=src[j]+(src[Math.min(j+1,src.length-1)]-src[j])*f;
+      }
+    }
+    return out;
+  },
+  /* bake the loop seam in place: the audio approaching loopEnd
+     becomes the audio approaching loopStart, so loop=true jumps with
+     zero discontinuity while the intro still plays once */
+  _bake:function(buf,B){
+    if(!B.loopEnd)return;
+    const sr=buf.sampleRate,xf=B.xf||5;
+    const n0=Math.floor((B.loopEnd-xf)*sr),N=Math.floor(xf*sr),m0=Math.floor((B.loopStart-xf)*sr);
+    for(let ch=0;ch<buf.numberOfChannels;ch++){
+      const d=buf.getChannelData(ch);
+      for(let i=0;i<N&&n0+i<d.length&&m0+i<d.length;i++){
+        const th=(i/N)*Math.PI/2;
+        d[n0+i]=Math.cos(th)*d[n0+i]+Math.sin(th)*d[m0+i];
+      }
+    }
+  },
+  _fetch:function(c){
+    if(!this.bus)return null;
+    const B=MUSIC.beds[c],me=this;
+    if(!B)return null;
+    if(this.bufs[c])return Promise.resolve(this.bufs[c]);
+    if(this.reqs[c])return this.reqs[c];
+    this.reqs[c]=fetch(B.url+MUSIC.fmt)
+      .then(function(r){if(!r.ok)throw 0;return r.arrayBuffer();})
+      .then(function(ab){return me.ctx.decodeAudioData(ab);})
+      .then(function(buf){
+        buf=me._shrink(buf);me._bake(buf,B);
+        me.bufs[c]=buf;me.reqs[c]=null;
+        const keep={};keep[c]=1;keep[me.cur]=1;keep[me.cur+1]=1;
+        for(const k in me.bufs)if(!keep[k])delete me.bufs[k];
+        return buf;
+      })
+      .catch(function(){me.reqs[c]=null;return null;});
+    return this.reqs[c];
+  },
+  /* the setStop hook: chapter routing, next-bed prefetch, the
+     featured piano — one entry point covers every call site */
+  stop:function(i,glide){
+    if(!this.bus)return;
+    const c=MUSIC.chap[i];
+    if(c!==undefined&&(c!==this.cur))this.play(c,glide?Math.min(glide*2.2,8):3);
+    if(c+1<MUSIC.beds.length&&i+1<MUSIC.chap.length&&MUSIC.chap[i+1]===c+1)this._fetch(c+1);
+    this._feature(i);
+  },
+  wake:function(){
+    if(!this.bus)return;
+    const i=Math.max(this.a._stop,0);
+    if(this.cur<0)this.play(MUSIC.chap[i],4);
+  },
+  play:function(c,fade){
+    if(!this.bus||c===this.cur)return;
+    const me=this;this._want=c;
+    this._fetch(c).then(function(buf){
+      if(!buf||me._want!==c||me.cur===c)return;
+      me._start(c,buf,fade);
+    });
+  },
+  _start:function(c,buf,fade){
+    const ctx=this.ctx,t=ctx.currentTime,B=MUSIC.beds[c],f=Math.max(1,fade||3);
+    /* park the outgoing chapter's playhead for a resume, not a restart */
+    if(this.cur>=0){
+      const P=MUSIC.beds[this.cur];
+      let p=this._startedOff+(t-this._startedAt);
+      if(P.loopEnd)while(p>P.loopEnd)p-=(P.loopEnd-P.loopStart);
+      this.pos[this.cur]=p;
+    }
+    const outG=this.slot?this.gB:this.gA;
+    const outSrc=this.slot?this.srcB:this.srcA;
+    this.slot^=1;
+    const inG=this.slot?this.gB:this.gA;
+    const src=ctx.createBufferSource();src.buffer=buf;
+    if(B.loopEnd){src.loop=true;src.loopStart=B.loopStart;src.loopEnd=B.loopEnd;}
+    src.connect(inG);
+    const off=Math.min(this.pos[c]||0,Math.max(0,buf.duration-1));
+    src.start(t,off);
+    this._startedAt=t;this._startedOff=off;
+    if(this.slot)this.srcB=src;else this.srcA=src;
+    inG.gain.cancelScheduledValues(t);
+    outG.gain.cancelScheduledValues(t);
+    try{
+      inG.gain.setValueCurveAtTime(XF_IN,t,f);
+      outG.gain.setValueCurveAtTime(XF_OUT,t,f);
+    }catch(e){
+      inG.gain.setValueAtTime(0,t);inG.gain.linearRampToValueAtTime(1,t+f);
+      outG.gain.setValueAtTime(outG.gain.value,t);outG.gain.linearRampToValueAtTime(0,t+f);
+    }
+    if(outSrc){try{outSrc.stop(t+f+.2);}catch(e){}}
+    this.cur=c;
+    this._genBed(true);
+  },
+  /* pads/sub/air bow out when a bed carries the fabric — and return
+     the moment it can't (offline, fetch failed, still loading) */
+  _genBed:function(on){
+    const a=this.a,t=this.ctx.currentTime;
+    if(a._bedOn===on)return;
+    a._bedOn=on;
+    a.padBus.gain.cancelScheduledValues(t);
+    a.padBus.gain.setTargetAtTime(on?0:.9,t,1.6);
+    a.subG.gain.setTargetAtTime(on?0:(SCORE[Math.max(a._stop,0)]||SCORE[0]).subG,t,1.6);
+    a.airG.gain.setTargetAtTime(on?0:.012,t,1.6);
+  },
+  duckFor:function(d){
+    if(!this.bus||this.cur<0)return;
+    const t=this.ctx.currentTime,g=this.duckG.gain;
+    g.cancelScheduledValues(t);g.setValueAtTime(g.value,t);
+    g.linearRampToValueAtTime(.7,t+d*.3);          /* ~-3 dB under the whoosh */
+    g.linearRampToValueAtTime(1,t+d);
+  },
+  /* Clair de lune at Earth: a distant piano out of the ambient
+     fabric, once, ducking the bed; leaves early if the visitor does */
+  _feature:function(i){
+    const F=MUSIC.feature;
+    if(i!==F.stop){this._featOff();return;}
+    if(!this.bus||this.featSrc)return;
+    if((performance.now()-this.featEnd)/1000<F.cooldown)return;
+    const me=this;
+    if(!this.featBuf&&!this.featReq){
+      this.featReq=fetch(F.url+MUSIC.fmt)
+        .then(function(r){if(!r.ok)throw 0;return r.arrayBuffer();})
+        .then(function(ab){return me.ctx.decodeAudioData(ab);})
+        .then(function(b){me.featBuf=me._shrink(b);me.featReq=null;return me.featBuf;})
+        .catch(function(){me.featReq=null;return null;});
+    }
+    Promise.resolve(this.featBuf||this.featReq).then(function(b){
+      if(!b||me.a._stop!==F.stop||me.featSrc)return;
+      const t=me.ctx.currentTime+F.delay;
+      const s=me.ctx.createBufferSource();s.buffer=b;s.connect(me.featG);
+      me.featG.gain.cancelScheduledValues(t);
+      me.featG.gain.setValueAtTime(0,t);
+      me.featG.gain.linearRampToValueAtTime(1,t+3);
+      me.duckG.gain.setTargetAtTime(F.duck,t,1.5);
+      s.onended=function(){me._featDone();};
+      s.start(t);me.featSrc=s;
+    });
+  },
+  _featOff:function(){
+    if(!this.featSrc)return;
+    const t=this.ctx.currentTime;
+    this.featG.gain.cancelScheduledValues(t);
+    this.featG.gain.setValueAtTime(this.featG.gain.value,t);
+    this.featG.gain.linearRampToValueAtTime(0,t+2);
+    try{this.featSrc.stop(t+2.1);}catch(e){}
+    this.featSrc.onended=null;
+    this._featDone();
+    this.featBuf=null;                     /* five minutes of piano: let it go */
+  },
+  _featDone:function(){
+    this.duckG.gain.setTargetAtTime(1,this.ctx.currentTime,2);
+    this.featSrc=null;this.featEnd=performance.now();
+  }
+};
+audio.bed=bed;
 document.addEventListener('visibilitychange',function(){
   if(document.hidden){
     if(LOOK.drag)lookRelease(0,0);
@@ -3687,6 +3898,12 @@ if(COARSE){
 let started=false;
 let prepP=null;
 async function prepare(){
+  /* warm the first chapter bed in the HTTP cache behind the splash —
+     decode still waits for the Begin gesture */
+  try{
+    if(MUSIC.ok&&document.getElementById('musicChk').checked)
+      fetch(MUSIC.beds[0].url+MUSIC.fmt).catch(function(){});
+  }catch(e){}
   const TEXSTEPS=[
     ['Pouring the Milky Way…','band'],
     ['Grinding pigments for the giants…','giants'],
@@ -3738,7 +3955,7 @@ async function prepare(){
   indexMaterials();applyBumps();faceGRS(.30);
   applyEmbedded().then(function(){
     const c=document.getElementById('credit');
-    c.textContent='Planet maps: Solar System Scope (CC BY 4.0) · NASA-derived';
+    c.textContent='Planet maps: Solar System Scope (CC BY 4.0) · NASA-derived · Music: Stellardrone (CC BY)';
     c.classList.add('on');
     upgradeHD();
   });
