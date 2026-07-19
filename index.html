@@ -156,23 +156,24 @@
   #tip.on{opacity:1}
   #tip.touch{transform:translate(-50%,-56px)}
 
-  /* ---------- way-home cue — a whisper at the frame edge nearest the lost world ---------- */
-  #home{position:fixed;z-index:22;opacity:0;pointer-events:none;background:none;border:none;
+  /* ---------- way-home cue — slides along the frame edge, always on the world's true bearing ---------- */
+  #home{position:fixed;left:0;top:0;z-index:22;opacity:0;pointer-events:none;background:none;border:none;
     padding:0;cursor:pointer;font-family:'Outfit',sans-serif;font-size:12.5px;letter-spacing:.14em;
     text-transform:uppercase;color:var(--haze);text-shadow:0 1px 8px rgba(0,0,0,.9);
-    white-space:nowrap;transition:opacity .35s}
-  #home b{color:var(--gold);font-weight:400}
+    white-space:nowrap;display:flex;align-items:center;gap:7px;transition:opacity .35s}
+  #home b{color:var(--gold);font-weight:400;display:inline-block}
   #home::before{content:'';position:absolute;inset:-46px -70px;z-index:-1;
     background:radial-gradient(ellipse closest-side,rgba(232,181,106,.12),transparent 70%)}
   #home::after{content:'';position:absolute;inset:-14px}   /* generous tap target */
   #home.on{opacity:1;pointer-events:auto;transition:opacity .8s ease .4s;
     animation:homebreath 3.5s ease-in-out 1.3s infinite}    /* breath starts after the fade-in */
-  #home.e-l{left:18px;top:50%;transform:translateY(-50%)}
-  #home.e-r{right:18px;top:50%;transform:translateY(-50%)}
-  #home.e-t{left:50%;top:64px;transform:translateX(-50%)}
-  #home.e-b{left:50%;bottom:max(20vh,170px);transform:translateX(-50%)}
   @keyframes homebreath{0%,100%{opacity:1}50%{opacity:.75}}
   @media (prefers-reduced-motion:reduce){#home.on{animation:none}}
+  /* gentler companions: tiny edge points for the stop's own worlds while you look around */
+  .wpt{position:fixed;left:0;top:0;width:5px;height:5px;border-radius:50%;z-index:21;
+    background:rgba(232,181,106,.75);box-shadow:0 0 9px 2px rgba(232,181,106,.3);
+    pointer-events:none;opacity:0;transition:opacity .6s}
+  .wpt.on{opacity:.45}
 
   /* ---------- fader ---------- */
   #fader{position:fixed;inset:0;background:#000;opacity:0;pointer-events:none;
@@ -2163,7 +2164,7 @@ const LOOK={ty:0,tp:0,   /* target offsets (radians) — written by input   */
             vy:0,vp:0,   /* velocities for coast + return spring          */
             drag:null,   /* live drag {id} or null                        */
             phase:0,     /* 0 idle · 1 drag · 2 hold/coast · 3 ease home  */
-            holdUntil:0,used:false,nudged:false,taught:false};
+            holdUntil:0,relT:0,used:false,nudged:false,taught:false};
 const LOOK_YAW_MAX=rad(60),LOOK_PIT_MAX=rad(35);   /* head-turn range at a stop */
 const LOOK_YAW_TR=rad(30),LOOK_PIT_TR=rad(20);     /* tighter out the window in flight */
 const LOOK_PIT_TOTAL=rad(86);                      /* total pitch: no pole flip at the Orbit Map */
@@ -2180,7 +2181,9 @@ function lookRelease(vy,vp){
   LOOK.drag=null;document.body.classList.remove('dragging');
   LOOK.vy=RM?0:Math.max(-LOOK_V_MAX,Math.min(LOOK_V_MAX,vy||0));
   LOOK.vp=RM?0:Math.max(-LOOK_V_MAX,Math.min(LOOK_V_MAX,vp||0));
-  LOOK.holdUntil=performance.now()+LOOK_HOLD_MS;
+  /* released in flight: centering rides the departure, not the arrival */
+  LOOK.holdUntil=TR?0:performance.now()+LOOK_HOLD_MS;
+  LOOK.relT=performance.now();
   LOOK.phase=(LOOK.dy||LOOK.dp||LOOK.vy||LOOK.vp)?2:0;
 }
 function lookHome(){if(LOOK.phase===2)LOOK.holdUntil=0;}   /* explicit action: ease home now */
@@ -2221,7 +2224,9 @@ function updateLook(dt){
     if(LOOK.holdUntil===0||(performance.now()>=LOOK.holdUntil&&TR&&!RM))LOOK.phase=3;
     return;
   }
-  const w=LOOK_W_RET;                                   /* critically damped ease home */
+  /* critically damped ease home — in flight the glide is long and
+     gentle, spanning the departure instead of snapping at arrival */
+  const w=TR?1.5:LOOK_W_RET;
   LOOK.vy+=(-w*w*LOOK.dy-2*w*LOOK.vy)*dt;LOOK.dy+=LOOK.vy*dt;
   LOOK.vp+=(-w*w*LOOK.dp-2*w*LOOK.vp)*dt;LOOK.dp+=LOOK.vp*dt;
   if(Math.abs(LOOK.dy)+Math.abs(LOOK.dp)<1.5e-3&&Math.abs(LOOK.vy)+Math.abs(LOOK.vp)<4e-3){
@@ -2290,29 +2295,66 @@ function updLabels(st){
     L.el.style.opacity=_v.z<1?1:0;
   }
 }
-/* WAY HOME — when the gaze carries the world off-frame, name it at the
-   nearest edge; the cue is itself the way back (tap → return spring).
-   Off-frame-ness is closed-form: the authored target sits at screen
-   center when dy=dp=0, so the offsets against the half-FOVs tell all. */
+/* WAY HOME — when the gaze carries the world off-frame, a cue slides
+   along the frame edge sitting on the world's TRUE bearing, recomputed
+   every frame so it keeps pointing right while you keep looking; the
+   cue is itself the way back (tap → return spring). Off-frame-ness is
+   closed-form: the authored target sits at screen center when dy=dp=0,
+   so the offsets against the half-FOVs tell all. */
 function updHomeCue(){
-  const vH=rad(camera.fov)/2, hH=Math.atan(Math.tan(vH)*camera.aspect);
-  const rx=Math.abs(LOOK.dy)/hH, ry=Math.abs(LOOK.dp)/vH;
   const on=homeEl.classList.contains('on');
-  const want=!TR&&!trans&&cur>=0&&LOOK.phase!==3&&
-             Math.max(rx,ry)>(on?.95:1.18);   /* hysteresis — no flicker at the edge */
-  if(!want){if(on)homeEl.classList.remove('on');return;}
-  const nm=STOP_NAMES[cur];
-  const side=rx>=ry?(LOOK.dy>0?'e-l':'e-r'):(LOOK.dp<0?'e-t':'e-b');
-  if(homeEl.dataset.k!==side+nm){
-    homeEl.className=side;
-    homeEl.innerHTML=side==='e-l'?'<b>◂</b> '+nm
-                    :side==='e-r'?nm+' <b>▸</b>'
-                    :side==='e-t'?nm+' <b>▴</b>'
-                                 :nm+' <b>▾</b>';
-    homeEl.dataset.k=side+nm;
+  if(TR||trans||cur<0||LOOK.phase===3){if(on)homeEl.classList.remove('on');return;}
+  const vH=rad(camera.fov)/2, hH=Math.atan(Math.tan(vH)*camera.aspect);
+  const vx=-LOOK.dy/hH, vy=LOOK.dp/vH;   /* toward the world, in half-frame units */
+  const m=Math.max(Math.abs(vx),Math.abs(vy));
+  if(m<(on?.95:1.18)){if(on)homeEl.classList.remove('on');return;}   /* hysteresis — no flicker */
+  const nm=STOP_NAMES[cur],left=vx<0;
+  if(homeEl.dataset.k!==nm+left){homeEl.dataset.k=nm+left;
+    homeEl.innerHTML=left?'<b>\u25b8</b><span>'+nm+'</span>':'<span>'+nm+'</span><b>\u25b8</b>';
     homeEl.setAttribute('aria-label','Bring '+nm+' back into view');
   }
+  /* border intersection inside the safe frame (below the dots, above
+     the caption zone), whole cue kept on-screen; the chevron carries
+     the exact bearing even where the position had to clamp */
+  const W=innerWidth,H=innerHeight,bt=70,bb=Math.max(H*.2,170);
+  const rcx=W/2,rcy=(bt+H-bb)/2,rhw=W/2-34,rhh=(H-bb-bt)/2,s=1/m;
+  const hw=homeEl.offsetWidth/2+10;
+  const px=Math.max(hw,Math.min(W-hw,rcx+vx*s*rhw));
+  const py=Math.max(bt,Math.min(H-bb,rcy+vy*s*rhh));
+  homeEl.style.transform='translate(-50%,-50%) translate('+px.toFixed(1)+'px,'+py.toFixed(1)+'px)';
+  homeEl.querySelector('b').style.transform='rotate('+(Math.atan2(vy,vx)*57.29578).toFixed(1)+'deg)';
   homeEl.classList.add('on');
+}
+/* gentler companions: while you're looking around (and for a beat
+   after), tiny gold points at the frame edge mark where the stop's own
+   named worlds wait off-screen — a reason to keep turning, not chrome */
+const WPTS=[];while(WPTS.length<8){const d=document.createElement('div');d.className='wpt';document.body.appendChild(d);WPTS.push(d);}
+const _wp3=new THREE.Vector3();
+function updWonderPts(){
+  let n=0;
+  if(!TR&&!trans&&cur>=0&&(LOOK.drag||performance.now()-LOOK.relT<2000)){
+    const vH=rad(camera.fov)/2,hH=Math.atan(Math.tan(vH)*camera.aspect);
+    const W=innerWidth,H=innerHeight,bt=64,bb=Math.max(H*.18,150);
+    const rcx=W/2,rcy=(bt+H-bb)/2,rhw=W/2-14,rhh=(H-bb-bt)/2;
+    const seen=new Set();
+    for(const o of stops[cur].hover){
+      if(n>=WPTS.length)break;
+      const nmO=o.userData.name;
+      /* one representative per name; the world itself is the home cue's
+         job; and a family member already on screen needs no pointer */
+      if(!nmO||nmO===STOP_NAMES[cur]||seen.has(nmO)||!o.visible)continue;
+      seen.add(nmO);
+      o.getWorldPosition(_wp3).applyMatrix4(camera.matrixWorldInverse);
+      const sx=Math.atan2(_wp3.x,-_wp3.z)/hH,
+            sy=-Math.atan2(_wp3.y,Math.hypot(_wp3.x,_wp3.z))/vH;
+      const m=Math.max(Math.abs(sx),Math.abs(sy));
+      if(m<1.15)continue;                  /* on screen — hover/tap has it */
+      const s=1/m,d=WPTS[n++];
+      d.style.transform='translate(-50%,-50%) translate('+(rcx+sx*s*rhw).toFixed(1)+'px,'+(rcy+sy*s*rhh).toFixed(1)+'px)';
+      d.classList.add('on');
+    }
+  }
+  for(let i=n;i<WPTS.length;i++)WPTS[i].classList.remove('on');
 }
 homeEl.onclick=function(){
   if(LOOK.drag||LOOK.phase===1)return;   /* never fight a finger */
@@ -2899,8 +2941,8 @@ function tick(now){
     if(playing&&!trans&&!factsOpen&&!LOOK.drag&&isFinite(st.dur)&&stopClock>st.dur+.05&&cur<stops.length-1)
       gotoStop(cur+1);
     updLabels(st);
-    updHomeCue();
   }
+  updHomeCue();updWonderPts();
   /* only the current stop and its neighbors are drawn */
   for(let iv=0;iv<=10;iv++){
     stops[iv].group.visible=(Math.abs(iv-cur)<=1)||(!!TR&&Math.abs(iv-TR.to)<=1);
