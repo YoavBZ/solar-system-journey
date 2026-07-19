@@ -2881,9 +2881,13 @@ function tick(now){
   updateLook(dt);              /* real dt: look feel ignores the speed control */
   meteorTick(now,dt);wonderTick(now);
   if(playing)GT+=jdt;
-  /* every visible scene keeps living */
+  /* every visible scene keeps living. The stop being flown TOWARD runs
+     on negative time converging to zero at touchdown, so its clock
+     hands off seamlessly to the fresh stopClock — no moon teleports
+     the moment we arrive */
   for(let i2=0;i2<stops.length;i2++){const s2=stops[i2];
-    if(s2.group.visible&&s2.update)s2.update(playing?jdt:0,(i2===cur)?stopClock:GT);}
+    if(s2.group.visible&&s2.update)
+      s2.update(playing?jdt:0,(i2===cur)?stopClock:(TR&&i2===TR.to)?TR.t-TR.dur:GT);}
   for(const s of spinners){
     if(s.base===null)s.base=s.m.rotation.y;
     if(!s.st)continue;
@@ -2967,9 +2971,12 @@ function tick(now){
     updLabels(st);
   }
   updHomeCue();updWonderPts();
-  /* only the current stop and its neighbors are drawn */
+  /* only the stops of the moment are staged: both ends of the leg in
+     flight, the current scene alone at rest — a free look must find
+     sky, not the next set dressing 150 units down the line (the
+     ever-present global sun keeps Mercury's tableau) */
   for(let iv=0;iv<=10;iv++){
-    stops[iv].group.visible=(Math.abs(iv-cur)<=1)||(!!TR&&Math.abs(iv-TR.to)<=1);
+    stops[iv].group.visible=TR?(iv===cur||iv===TR.to):(iv===cur);
   }
 
   /* belt is heavy — draw it only when nearby */
