@@ -1747,7 +1747,9 @@ const BUILDERS=[
     mh.position.set(-7.7,1.62,.5);g.add(mh);
     st.update=function(dt,el){
       const a=2.1-el*.14;                 /* ~45 s per lap, backwards like the real thing rises */
-      ph.position.set(Math.cos(a)*2.7,.35*Math.sin(a*.9),Math.sin(a)*2.7*.55);
+      /* depth semi-axis must clear the 1.6 sphere: at .55 the ellipse
+         bottomed out at 1.49 and Phobos sank through the front face */
+      ph.position.set(Math.cos(a)*2.7,.35*Math.sin(a*.9),Math.sin(a)*2.7*.68);
     };
     st.update(0,0);
   }})],
@@ -1778,7 +1780,12 @@ const BUILDERS=[
     sunLight(g,[30,13,17],1.25);
     sunFill(g);
     const nf=new THREE.PointLight(0x36455c,.43,120,1);nf.position.set(-28,-8,-20);g.add(nf);
-    g.add(name(spin(new THREE.Mesh(new THREE.SphereGeometry(1.5,96,64),makeEarthMaterial([7,3,4])),.02),'Earth',st));
+    const er=name(spin(new THREE.Mesh(new THREE.SphereGeometry(1.5,96,64),makeEarthMaterial([7,3,4])),.02),'Earth',st);
+    /* base the globe so the visible night is Europe/Africa aglow with
+       cities (and Asia riding the lit limb) — at 0 the dark side was
+       the empty Pacific, and night Earth showed almost no lights */
+    er.rotation.y=3.23;
+    g.add(er);
     const cl=spin(new THREE.Mesh(new THREE.SphereGeometry(1.518,96,64),
       makeCloudMaterial([7,3,4])),.026);
     cl.renderOrder=1;g.add(cl);
@@ -1787,11 +1794,23 @@ const BUILDERS=[
     mo.rotation.y=-1.45;               /* near side base: maria centered at the featured beat */
     mo.material.emissive=new THREE.Color(0x11141a);  /* faint earthshine on the dark limb */
     mo.position.set(12,.6,-4);g.add(mo);
-    /* something man-made, alive in the scene: a glint endlessly
-       rounding the limb on the Station's real 51.6° inclination */
+    /* something man-made, alive in the scene: the Station itself,
+       endlessly rounding the limb on its real 51.6° inclination.
+       A white point until the real portrait streams in (NASA render,
+       public domain, ships in assets/) — offline still gets the glint */
     const iss=name(new THREE.Mesh(new THREE.SphereGeometry(.02,6,4),
       new THREE.MeshBasicMaterial({color:0xffffff})),'The Space Station',st);
     g.add(iss);
+    let issImg=null;
+    loadTex('assets/textures/iss.webp',true).then(function(t){
+      if(!t)return;
+      issImg=name(new THREE.Sprite(new THREE.SpriteMaterial({map:t,transparent:true,
+        depthWrite:false,color:0xdde4ec})),'The Space Station',st);
+      issImg.scale.set(.22,.22*134/256,1);
+      issImg.position.copy(iss.position);
+      g.add(issImg);
+      iss.visible=false;
+    });
     const issG=sprite(glowTexture('rgba(255,255,255,.95)','rgba(220,235,255,.3)'),.09);
     g.add(issG);
     const ve2=name(sprite(glowTexture('rgba(255,250,235,1)','rgba(240,230,210,.3)'),.3),'Venus, the evening star',st);
@@ -1800,6 +1819,8 @@ const BUILDERS=[
       const a=el*.29,ci=Math.cos(rad(51.6)),si=Math.sin(rad(51.6));
       iss.position.set(Math.cos(a)*1.63,Math.sin(a)*1.63*si*.9,Math.sin(a)*1.63*ci);
       issG.position.copy(iss.position);
+      /* the portrait keeps one face to Earth, so it slowly turns as it rounds */
+      if(issImg){issImg.position.copy(iss.position);issImg.material.rotation=-a*.5;}
       /* twice an orbit the panels catch the Sun */
       const gl=Math.pow(Math.max(0,Math.sin(a*2+.7)),12);
       issG.material.opacity=.25+.75*gl;

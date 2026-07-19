@@ -52,4 +52,4 @@ python3 -m http.server
 
 ## Credits
 
-Planet and moon maps by [Solar System Scope](https://www.solarsystemscope.com/textures/) ([CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)), based on NASA imagery. Rendered with [three.js](https://threejs.org/) r128.
+Planet and moon maps by [Solar System Scope](https://www.solarsystemscope.com/textures/) ([CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)), based on NASA imagery. Space Station render by [NASA](https://commons.wikimedia.org/wiki/File:ISS_spacecraft_model_1.png) (public domain). Rendered with [three.js](https://threejs.org/) r128.
