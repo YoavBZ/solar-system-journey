@@ -2301,12 +2301,35 @@ function updLabels(st){
    cue is itself the way back (tap → return spring). Off-frame-ness is
    closed-form: the authored target sits at screen center when dy=dp=0,
    so the offsets against the half-FOVs tell all. */
+/* the world's apparent angular radius, from its own mesh: a giant is
+   only "lost" once its LIMB — not its center — has left the frame,
+   which is what keeps the cue honest on narrow phone screens */
+const _ca=new THREE.Vector3();
+function cueAng(){
+  const st=stops[cur];
+  if(st._cueO===undefined){
+    st._cueO=null;
+    for(const o of st.hover){
+      if(!o.isMesh||!o.geometry)continue;
+      if(o.userData.name===STOP_NAMES[cur]){st._cueO=o;break;}
+      if(!st._cueO&&STOP_NAMES[cur].indexOf(o.userData.name)>=0)st._cueO=o;
+    }
+    if(st._cueO&&!st._cueO.geometry.boundingSphere)st._cueO.geometry.computeBoundingSphere();
+  }
+  const o=st._cueO;
+  if(!o||!o.geometry.boundingSphere)return 0;
+  o.getWorldPosition(_ca);
+  const d=camera.position.distanceTo(_ca);
+  const r=o.geometry.boundingSphere.radius*o.matrixWorld.getMaxScaleOnAxis();
+  return r<d?Math.asin(r/d):1.5;
+}
 function updHomeCue(){
   const on=homeEl.classList.contains('on');
   if(TR||trans||cur<0||LOOK.phase===3){if(on)homeEl.classList.remove('on');return;}
   const vH=rad(camera.fov)/2, hH=Math.atan(Math.tan(vH)*camera.aspect);
   const vx=-LOOK.dy/hH, vy=LOOK.dp/vH;   /* toward the world, in half-frame units */
-  const m=Math.max(Math.abs(vx),Math.abs(vy));
+  const a=cueAng();
+  const m=Math.max((Math.abs(LOOK.dy)-a)/hH,(Math.abs(LOOK.dp)-a)/vH);
   if(m<(on?.95:1.18)){if(on)homeEl.classList.remove('on');return;}   /* hysteresis — no flicker */
   const nm=STOP_NAMES[cur],left=vx<0;
   if(homeEl.dataset.k!==nm+left){homeEl.dataset.k=nm+left;
@@ -2316,6 +2339,7 @@ function updHomeCue(){
   /* border intersection inside the safe frame (below the dots, above
      the caption zone), whole cue kept on-screen; the chevron carries
      the exact bearing even where the position had to clamp */
+  /* (placement uses the raw center bearing; only show/hide is limb-aware) */
   const W=innerWidth,H=innerHeight,bt=70,bb=Math.max(H*.2,170);
   const rcx=W/2,rcy=(bt+H-bb)/2,rhw=W/2-34,rhh=(H-bb-bt)/2,s=1/m;
   const hw=homeEl.offsetWidth/2+10;
@@ -3565,7 +3589,8 @@ async function prepare(){
   buildComet();
   window.__J={scene:scene,stops:stops,camera:camera,goto:gotoStop,audio:audio,look:LOOK,
     dir:function(){const v=new THREE.Vector3();camera.getWorldDirection(v);return[v.x,v.y,v.z];},
-    st:function(){return{cur:cur,TR:!!TR,stopClock:stopClock,look:{dy:LOOK.dy,dp:LOOK.dp,phase:LOOK.phase}};}};
+    st:function(){return{cur:cur,TR:!!TR,stopClock:stopClock,look:{dy:LOOK.dy,dp:LOOK.dp,phase:LOOK.phase}};},
+    cueAng:function(){return cueAng();}};
   for(let i=0;i<stops.length;i++){
     const d=document.createElement('button');
     d.className='dot';d.title=STOP_NAMES[i];d.setAttribute('aria-label',STOP_NAMES[i]);
