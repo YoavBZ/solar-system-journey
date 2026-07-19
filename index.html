@@ -1747,7 +1747,9 @@ const BUILDERS=[
     mh.position.set(-7.7,1.62,.5);g.add(mh);
     st.update=function(dt,el){
       const a=2.1-el*.14;                 /* ~45 s per lap, backwards like the real thing rises */
-      ph.position.set(Math.cos(a)*2.7,.35*Math.sin(a*.9),Math.sin(a)*2.7*.55);
+      /* depth semi-axis must clear the 1.6 sphere: at .55 the ellipse
+         bottomed out at 1.49 and Phobos sank through the front face */
+      ph.position.set(Math.cos(a)*2.7,.35*Math.sin(a*.9),Math.sin(a)*2.7*.68);
     };
     st.update(0,0);
   }})],
