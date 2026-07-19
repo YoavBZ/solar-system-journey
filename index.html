@@ -1778,7 +1778,12 @@ const BUILDERS=[
     sunLight(g,[30,13,17],1.25);
     sunFill(g);
     const nf=new THREE.PointLight(0x36455c,.43,120,1);nf.position.set(-28,-8,-20);g.add(nf);
-    g.add(name(spin(new THREE.Mesh(new THREE.SphereGeometry(1.5,96,64),makeEarthMaterial([7,3,4])),.02),'Earth',st));
+    const er=name(spin(new THREE.Mesh(new THREE.SphereGeometry(1.5,96,64),makeEarthMaterial([7,3,4])),.02),'Earth',st);
+    /* base the globe so the visible night is Europe/Africa aglow with
+       cities (and Asia riding the lit limb) — at 0 the dark side was
+       the empty Pacific, and night Earth showed almost no lights */
+    er.rotation.y=3.23;
+    g.add(er);
     const cl=spin(new THREE.Mesh(new THREE.SphereGeometry(1.518,96,64),
       makeCloudMaterial([7,3,4])),.026);
     cl.renderOrder=1;g.add(cl);
